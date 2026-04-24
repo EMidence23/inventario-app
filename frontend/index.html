@@ -252,6 +252,7 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
       <div class="hist-tabs">
         <button class="hist-tab active" id="htHoy" onclick="switchHistTab('hoy')">📅 HOY</button>
         <button class="hist-tab" id="htSemana" onclick="switchHistTab('semana')">📊 SEMANA</button>
+        <button class="hist-tab" id="htMes" onclick="switchHistTab('mes')">📆 MES</button>
       </div>
 
       <!-- PANEL HOY -->
@@ -262,6 +263,11 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
       <!-- PANEL SEMANA -->
       <div class="hist-panel" id="hpSemana">
         <div id="histSemanaContent"></div>
+      </div>
+
+      <!-- PANEL MES -->
+      <div class="hist-panel" id="hpMes">
+        <div id="histMesContent"></div>
       </div>
     </div>
 
@@ -720,14 +726,17 @@ function switchHistTab(tab){
   currentHistTab=tab;
   document.getElementById('htHoy').classList.toggle('active',tab==='hoy');
   document.getElementById('htSemana').classList.toggle('active',tab==='semana');
+  document.getElementById('htMes').classList.toggle('active',tab==='mes');
   document.getElementById('hpHoy').classList.toggle('active',tab==='hoy');
   document.getElementById('hpSemana').classList.toggle('active',tab==='semana');
+  document.getElementById('hpMes').classList.toggle('active',tab==='mes');
   renderHistorial();
 }
 
 function renderHistorial(){
   if(currentHistTab==='hoy') renderHistHoy();
-  else renderHistSemana();
+  else if(currentHistTab==='semana') renderHistSemana();
+  else renderHistMes();
 }
 
 function renderHistHoy(){
@@ -889,6 +898,103 @@ function renderHistSemana(){
       const total=u.items.reduce((a,i)=>a+i.qtyUsed,0);
       const hora=formatTime(u.ts);
       const key='sw-'+date.replace(/-/g,'')+'-'+ri;
+      const detalle=u.items.map(i=>`
+        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
+          <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div></div>
+          <div style="font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;color:var(--accent);">${i.qtyUsed}</div>
+        </div>`).join('');
+      return `<div class="uso-card" style="margin-bottom:6px;">
+        <div class="uso-card-header" onclick="toggleUsoH('${key}')">
+          <div class="uso-card-info">
+            <div class="uso-card-title">🕐 ${hora} · <span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">${esc(u.user)}</span></div>
+            <div class="uso-card-sub">${u.items.length} art. · <strong style="color:var(--accent)">${total}</strong> uds.</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteUsageRecord(${u.id})">🗑️</button>
+            <span class="uso-chevron" id="chev-${key}">▼</span>
+          </div>
+        </div>
+        <div class="uso-detail" id="detail-${key}">${detalle}</div>
+      </div>`;
+    }).join('');
+  });
+
+  div.innerHTML=html;
+}
+
+function renderHistMes(){
+  const div=document.getElementById('histMesContent');
+  if(currentUser.role!=='admin'){
+    div.innerHTML=`<div class="locked-msg"><span class="lock-icon">🔒</span>El reporte mensual está disponible<br>solo para el <strong>Administrador</strong>.</div>`;
+    return;
+  }
+  const today=todayStr();
+  const ym=today.slice(0,7);
+  const [y,m]=ym.split('-').map(Number);
+  const from=`${ym}-01`;
+  const lastDay=new Date(y,m,0).getDate();
+  const to=`${ym}-${String(lastDay).padStart(2,'0')}`;
+  const usage=getUsage().filter(u=>u.date>=from&&u.date<=to);
+  const mesesLargo=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const tituloMes=`${mesesLargo[m-1]} ${y}`;
+  if(usage.length===0){
+    div.innerHTML=`<div class="empty-state"><span class="empty-icon">📆</span><p>No hay registros en ${tituloMes}</p></div>`;
+    return;
+  }
+  // Resumen total del mes
+  const summary={};
+  usage.forEach(u=>u.items.forEach(i=>{
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0};
+    summary[i.code].total+=i.qtyUsed;
+  }));
+  const totalUnidades=Object.values(summary).reduce((a,s)=>a+s.total,0);
+
+  // Agrupar por día
+  const byDay={};
+  usage.forEach(u=>{
+    if(!byDay[u.date]) byDay[u.date]=[];
+    byDay[u.date].push(u);
+  });
+
+  let html=`
+    <div style="background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:12px;display:flex;justify-content:space-between;">
+      <div><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--accent)">${totalUnidades}</div><div style="color:var(--text2);font-size:11px;">total del mes</div></div>
+      <div style="text-align:center"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--blue)">${usage.length}</div><div style="color:var(--text2);font-size:11px;">registros</div></div>
+      <div style="text-align:right"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--green)">${Object.keys(byDay).length}</div><div style="color:var(--text2);font-size:11px;">días activos</div></div>
+    </div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📆 Resumen de ${tituloMes}</div>
+    ${Object.values(summary).sort((a,b)=>b.total-a.total).map(s=>`
+      <div class="hist-item">
+        <div class="item-info">
+          <div class="item-name">${esc(s.name)}</div>
+          <div class="item-code">${esc(s.code)}</div>
+        </div>
+        <div class="hist-qty">${s.total}</div>
+      </div>`).join('')}
+    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:16px 0 8px;">📅 Detalle por Día</div>`;
+
+  Object.keys(byDay).sort().forEach(date=>{
+    const regs=byDay[date];
+    const daySummary={};
+    regs.forEach(u=>u.items.forEach(i=>{
+      if(!daySummary[i.code]) daySummary[i.code]={code:i.code,name:i.name,total:0};
+      daySummary[i.code].total+=i.qtyUsed;
+    }));
+    const dayTotal=Object.values(daySummary).reduce((a,s)=>a+s.total,0);
+    html+=`<div class="hist-day-header"><span>📅 ${formatDate(date)}</span><strong>${dayTotal} uds.</strong></div>`;
+    html+=Object.values(daySummary).sort((a,b)=>b.total-a.total).map(s=>`
+      <div class="hist-item" style="margin-bottom:6px;">
+        <div class="item-info">
+          <div class="item-name">${esc(s.name)}</div>
+          <div class="item-code">${esc(s.code)}</div>
+        </div>
+        <div class="hist-qty" style="font-size:20px;">${s.total}</div>
+      </div>`).join('');
+    html+=`<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:8px 0 4px;padding-left:4px;">Registros individuales — toca 🗑️ para eliminar</div>`;
+    html+=regs.map((u,ri)=>{
+      const total=u.items.reduce((a,i)=>a+i.qtyUsed,0);
+      const hora=formatTime(u.ts);
+      const key='sm-'+date.replace(/-/g,'')+'-'+ri;
       const detalle=u.items.map(i=>`
         <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
           <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div></div>
