@@ -31,7 +31,9 @@ def _to_out(row: UsageRecord) -> UsageRecordOut:
         )
         for it in items_data
     ]
-    ts = row.ts.isoformat() if row.ts else ""
+    # Los timestamps se guardan con datetime.utcnow(); anadimos el sufijo 'Z'
+    # para que el frontend los interprete como UTC en lugar de hora local.
+    ts = (row.ts.isoformat() + "Z") if row.ts else ""
     return UsageRecordOut(
         id=row.id,
         user=row.username_snapshot or "",
