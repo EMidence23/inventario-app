@@ -125,6 +125,9 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
 .usage-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 12px;margin-bottom:7px;display:flex;align-items:center;gap:10px;}
 .qty-input{width:68px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px;text-align:center;font-size:16px;font-family:'Rajdhani',sans-serif;font-weight:600;outline:none;}
 .qty-input:focus{border-color:var(--accent);}
+/* Barra Guardar Uso: fija sobre la bottom-nav para que siempre sea alcanzable */
+.save-uso-bar{position:fixed;left:0;right:0;bottom:60px;padding:10px 14px 10px;background:linear-gradient(to bottom,rgba(13,17,23,0) 0%,var(--bg) 35%);z-index:90;pointer-events:none;}
+.save-uso-bar .btn{pointer-events:auto;box-shadow:0 4px 14px rgba(0,0,0,.45);}
 
 /* USUARIOS */
 .user-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px;margin-bottom:9px;display:flex;align-items:center;gap:11px;}
@@ -238,8 +241,10 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
       <select id="filterCatUso" class="date-picker" onchange="renderUsageList()" style="margin-bottom:10px;">
         <option value="">Todas las categorías</option>
       </select>
-      <div id="usageList"></div>
-      <button class="btn btn-primary" style="margin-top:14px;" onclick="saveUsage()">💾 GUARDAR USO</button>
+      <div id="usageList" style="padding-bottom:70px;"></div>
+      <div class="save-uso-bar">
+        <button class="btn btn-primary" onclick="saveUsage()">💾 GUARDAR USO</button>
+      </div>
     </div>
 
     <!-- HISTORIAL -->
