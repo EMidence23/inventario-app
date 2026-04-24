@@ -35,6 +35,7 @@ def _migrate_add_missing_columns() -> None:
     - Agrega columnas opcionales como cat en inventory_items.
     """
     inspector = inspect(engine)
+    is_sqlite = settings.database_url.startswith("sqlite")
     # Rebuilds one-shot: si la tabla usage_records viene de una version
     # anterior (faltan columnas o las filas son ilegibles), la borramos
     # para que Base.metadata.create_all la rehaga en estado limpio.
@@ -43,7 +44,9 @@ def _migrate_add_missing_columns() -> None:
         existing = {c["name"] for c in inspector.get_columns("usage_records")}
         if not _EXPECTED_USAGE_COLUMNS.issubset(existing):
             rebuild = True
-        else:
+        elif is_sqlite:
+            # El check con typeof() es especifico de SQLite; en Postgres
+            # confiamos en que los tipos de columna ya garantizan consistencia.
             try:
                 with engine.connect() as conn:
                     rows = conn.execute(
