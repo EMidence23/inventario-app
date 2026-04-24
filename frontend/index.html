@@ -235,6 +235,9 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
         <span class="si">🔍</span>
         <input type="search" id="searchUso" placeholder="Buscar accesorio..." oninput="renderUsageList()">
       </div>
+      <select id="filterCatUso" class="date-picker" onchange="renderUsageList()" style="margin-bottom:10px;">
+        <option value="">Todas las categorías</option>
+      </select>
       <div id="usageList"></div>
       <button class="btn btn-primary" style="margin-top:14px;" onclick="saveUsage()">💾 GUARDAR USO</button>
     </div>
@@ -270,6 +273,18 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
         <p>Excel con resumen de toda una semana. (Solo Admin)</p>
         <input type="date" id="weekStart" class="date-picker">
         <button class="btn btn-green" onclick="exportWeekly()">⬇️ DESCARGAR EXCEL SEMANAL</button>
+      </div>
+      <div class="report-card" id="reportMesCard">
+        <h3>🗓️ Reporte Mensual</h3>
+        <p>Excel con resumen de un mes completo. (Solo Admin)</p>
+        <input type="month" id="monthPick" class="date-picker">
+        <button class="btn btn-green" onclick="exportMonthly()">⬇️ DESCARGAR EXCEL MENSUAL</button>
+      </div>
+      <div class="report-card" id="reportAnoCard">
+        <h3>📆 Reporte Anual</h3>
+        <p>Excel con resumen del año, desglosado por mes. (Solo Admin)</p>
+        <input type="number" id="yearPick" class="date-picker" min="2020" max="2100" step="1" placeholder="2026">
+        <button class="btn btn-green" onclick="exportYearly()">⬇️ DESCARGAR EXCEL ANUAL</button>
       </div>
     </div>
 
@@ -449,6 +464,8 @@ async function startApp(){
   const today=todayStr();
   document.getElementById('reportDate').value=today;
   document.getElementById('weekStart').value=today;
+  document.getElementById('monthPick').value=today.slice(0,7);
+  document.getElementById('yearPick').value=today.slice(0,4);
   usageQtys={};
   await refreshAll();
   renderDashboard();
@@ -640,8 +657,16 @@ async function deleteItem(id){
 // ── REGISTRO DE USO ──────────────────────────────────────
 let usageQtys={};
 function renderUsageList(){
+  const all=getInventory();
   const q=(document.getElementById('searchUso').value||'').toLowerCase().trim();
-  let items=getInventory();
+  const catSel=document.getElementById('filterCatUso');
+  const prev=catSel.value;
+  const cats=[...new Set(all.map(i=>(i.cat||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  catSel.innerHTML='<option value="">Todas las categorías</option>'+cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  catSel.value=cats.includes(prev)?prev:'';
+  const catF=catSel.value;
+  let items=all;
+  if(catF) items=items.filter(i=>(i.cat||'').trim()===catF);
   if(q) items=items.filter(i=>i.code.toLowerCase().includes(q)||i.name.toLowerCase().includes(q));
   const list=document.getElementById('usageList');
   if(items.length===0){list.innerHTML='<div class="empty-state"><span class="empty-icon">📦</span><p>No hay accesorios</p></div>';return;}
@@ -928,6 +953,69 @@ function exportWeekly(){
   XLSX.utils.book_append_sheet(wb,ws2,'Detalle por Dia');
   XLSX.writeFile(wb,`Reporte_Semanal_${monday}_al_${sunday}.xlsx`);
   showToast('📥 Excel semanal descargado');
+}
+
+function exportMonthly(){
+  const ym=document.getElementById('monthPick').value; // "YYYY-MM"
+  if(!ym||!/^\d{4}-\d{2}$/.test(ym)){showToast('Selecciona un mes',true);return;}
+  const [y,m]=ym.split('-').map(Number);
+  const from=`${ym}-01`;
+  const lastDay=new Date(y,m,0).getDate();
+  const to=`${ym}-${String(lastDay).padStart(2,'0')}`;
+  const usage=getUsage().filter(u=>u.date>=from&&u.date<=to);
+  if(usage.length===0){showToast('No hay uso en ese mes',true);return;}
+  const summary={};
+  usage.forEach(u=>u.items.forEach(i=>{
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0};
+    summary[i.code].total+=i.qtyUsed;
+  }));
+  const wb=XLSX.utils.book_new();
+  const ws1=XLSX.utils.aoa_to_sheet([['Codigo','Descripcion','Cantidad Utilizado'],...Object.values(summary).sort((a,b)=>b.total-a.total).map(s=>[s.code,s.name,s.total])]);
+  ws1['!cols']=[{wch:14},{wch:38},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,ws1,'Resumen del Mes');
+  const detRows=[];
+  usage.forEach(u=>u.items.forEach(i=>detRows.push([u.date,i.code,i.name,i.qtyUsed,u.user])));
+  detRows.sort((a,b)=>a[0].localeCompare(b[0]));
+  const ws2=XLSX.utils.aoa_to_sheet([['Fecha','Codigo','Descripcion','Cantidad Utilizado','Registrado Por'],...detRows]);
+  ws2['!cols']=[{wch:12},{wch:14},{wch:38},{wch:20},{wch:18}];
+  XLSX.utils.book_append_sheet(wb,ws2,'Detalle por Dia');
+  XLSX.writeFile(wb,`Reporte_Mensual_${ym}.xlsx`);
+  showToast('📥 Excel mensual descargado');
+}
+
+function exportYearly(){
+  const year=parseInt(document.getElementById('yearPick').value,10);
+  if(!year||year<2000||year>2100){showToast('Selecciona un año válido',true);return;}
+  const yStr=String(year);
+  const usage=getUsage().filter(u=>u.date&&u.date.slice(0,4)===yStr);
+  if(usage.length===0){showToast('No hay uso en ese año',true);return;}
+  const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  // Resumen: fila por codigo, columnas Ene..Dic + Total
+  const byCode={};
+  usage.forEach(u=>{
+    const mi=parseInt(u.date.slice(5,7),10)-1;
+    u.items.forEach(i=>{
+      if(!byCode[i.code]) byCode[i.code]={code:i.code,name:i.name,months:Array(12).fill(0)};
+      byCode[i.code].months[mi]+=i.qtyUsed;
+    });
+  });
+  const header=['Codigo','Descripcion',...meses,'Total Anual'];
+  const rows=Object.values(byCode).map(r=>{
+    const total=r.months.reduce((a,b)=>a+b,0);
+    return [r.code,r.name,...r.months,total];
+  }).sort((a,b)=>b[14]-a[14]);
+  const wb=XLSX.utils.book_new();
+  const ws1=XLSX.utils.aoa_to_sheet([header,...rows]);
+  ws1['!cols']=[{wch:14},{wch:38},...Array(12).fill({wch:10}),{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws1,'Resumen Anual');
+  // Totales por mes
+  const monthTotals=meses.map((n,i)=>[n,rows.reduce((a,r)=>a+r[2+i],0)]);
+  monthTotals.push(['TOTAL ANUAL',rows.reduce((a,r)=>a+r[14],0)]);
+  const ws2=XLSX.utils.aoa_to_sheet([['Mes','Cantidad Utilizado'],...monthTotals]);
+  ws2['!cols']=[{wch:16},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,ws2,'Totales por Mes');
+  XLSX.writeFile(wb,`Reporte_Anual_${yStr}.xlsx`);
+  showToast('📥 Excel anual descargado');
 }
 
 // ── USUARIOS ─────────────────────────────────────────────
