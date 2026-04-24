@@ -63,10 +63,14 @@ def create_usage(
             detail="Ingresa al menos 1 accesorio usado",
         )
     now = datetime.utcnow()
+    # Preferir la fecha local del cliente cuando viene en el payload; evita
+    # que registros creados cerca de medianoche UTC caigan en el dia
+    # "equivocado" para usuarios en zonas horarias distintas de UTC.
+    local_date = payload.date or now.strftime("%Y-%m-%d")
     record = UsageRecord(
         user_id=user.id,
         username_snapshot=user.username,
-        date=now.strftime("%Y-%m-%d"),
+        date=local_date,
         ts=now,
         items_json=json.dumps([it.model_dump() for it in filtered]),
     )

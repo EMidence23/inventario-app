@@ -17,6 +17,15 @@ def _resolve_database_url() -> str:
     return "sqlite:///./inventario.db"
 
 
+def _resolve_cors_origins() -> list[str]:
+    """Lee CORS_ORIGINS como lista separada por comas. Default: permite todo."""
+    raw = os.getenv("CORS_ORIGINS")
+    if not raw:
+        return ["*"]
+    origins = [o.strip() for o in raw.split(",") if o.strip()]
+    return origins or ["*"]
+
+
 def _resolve_jwt_secret() -> str:
     explicit = os.getenv("JWT_SECRET")
     if explicit:
@@ -38,7 +47,7 @@ class Settings:
     jwt_secret: str = _resolve_jwt_secret()
     jwt_algorithm: str = "HS256"
     jwt_expire_hours: int = 24 * 30  # 30 dias
-    cors_origins: list[str] = ["*"]
+    cors_origins: list[str] = _resolve_cors_origins()
 
 
 settings = Settings()

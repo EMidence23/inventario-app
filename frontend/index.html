@@ -653,7 +653,7 @@ async function saveUsage(){
   if(items.length===0){showToast('Ingresa al menos 1 accesorio usado',true);return;}
   try{
     showLoader(true);
-    await api('/api/usage',{method:'POST',body:JSON.stringify({items})});
+    await api('/api/usage',{method:'POST',body:JSON.stringify({items,date:todayStr()})});
     await loadUsage();
     usageQtys={};
     showToast('✅ Uso registrado correctamente');

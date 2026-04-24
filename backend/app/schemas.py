@@ -65,6 +65,8 @@ class UsageItemIn(BaseModel):
 
 class UsageRecordIn(BaseModel):
     items: list[UsageItemIn]
+    # Fecha local del cliente (YYYY-MM-DD). Si no se envia se usa UTC.
+    date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
 class UsageItemOut(BaseModel):
