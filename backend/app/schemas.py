@@ -48,6 +48,7 @@ class InventoryItemIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     cat: str = ""
     stock: int | None = Field(default=None, ge=0)
+    cost: float | None = Field(default=None, ge=0)
 
 
 class InventoryItemOut(BaseModel):
@@ -56,6 +57,7 @@ class InventoryItemOut(BaseModel):
     name: str
     cat: str
     stock: int
+    cost: float
 
 
 class UsageItemIn(BaseModel):

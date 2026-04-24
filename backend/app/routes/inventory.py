@@ -16,12 +16,23 @@ router = APIRouter(prefix="/api/inventory", tags=["inventory"])
 
 @router.get("", response_model=list[InventoryItemOut])
 def list_items(
-    _: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[InventoryItemOut]:
     rows = db.query(InventoryItem).order_by(InventoryItem.id).all()
+    # El costo unitario es informacion sensible (margenes); solo lo
+    # devolvemos al admin. Para empleados se esconde a 0 desde la API
+    # para que ni siquiera con devtools se pueda leer.
+    expose_cost = user.role == "admin"
     return [
-        InventoryItemOut(id=r.id, code=r.code, name=r.name, cat=r.cat or "", stock=r.stock or 0)
+        InventoryItemOut(
+            id=r.id,
+            code=r.code,
+            name=r.name,
+            cat=r.cat or "",
+            stock=r.stock or 0,
+            cost=float(r.cost or 0.0) if expose_cost else 0.0,
+        )
         for r in rows
     ]
 
@@ -42,12 +53,18 @@ def create_item(
         name=payload.name,
         cat=payload.cat or "",
         stock=payload.stock if payload.stock is not None else 0,
+        cost=float(payload.cost) if payload.cost is not None else 0.0,
     )
     db.add(item)
     db.commit()
     db.refresh(item)
     return InventoryItemOut(
-        id=item.id, code=item.code, name=item.name, cat=item.cat or "", stock=item.stock or 0
+        id=item.id,
+        code=item.code,
+        name=item.name,
+        cat=item.cat or "",
+        stock=item.stock or 0,
+        cost=float(item.cost or 0.0),
     )
 
 
@@ -76,10 +93,17 @@ def update_item(
     item.cat = payload.cat or ""
     if payload.stock is not None:
         item.stock = payload.stock
+    if payload.cost is not None:
+        item.cost = float(payload.cost)
     db.commit()
     db.refresh(item)
     return InventoryItemOut(
-        id=item.id, code=item.code, name=item.name, cat=item.cat or "", stock=item.stock or 0
+        id=item.id,
+        code=item.code,
+        name=item.name,
+        cat=item.cat or "",
+        stock=item.stock or 0,
+        cost=float(item.cost or 0.0),
     )
 
 

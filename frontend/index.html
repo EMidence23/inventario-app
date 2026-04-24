@@ -353,6 +353,10 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
       <label>Cantidad en Stock</label>
       <input type="number" id="iStock" min="0" step="1" placeholder="Ej: 100">
     </div>
+    <div class="form-group">
+      <label>Costo Unitario (L.)</label>
+      <input type="number" id="iCost" min="0" step="0.01" placeholder="Ej: 25.50">
+    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal('itemModal')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveItem()">Guardar</button>
@@ -613,12 +617,17 @@ function renderInventory(){
   list.innerHTML=items.map(i=>{
     const s=Number(i.stock||0);
     const cls=s===0?'stock-zero':(s<=20?'stock-low':'stock-ok');
+    const c=Number(i.cost||0);
+    const costoHtml=isAdmin?`<div class="stock-badge stock-ok" style="margin-left:6px;background:rgba(56,139,253,.15);color:#79b8ff;border-color:rgba(56,139,253,.35);">💰 ${formatLempira(c)}</div>`:'';
     return `
     <div class="item-card">
       <div class="item-info">
         <div class="item-name">${esc(i.name)}</div>
         <div class="item-code">${esc(i.code)}${i.cat?` <span class="chip">${esc(i.cat)}</span>`:''}</div>
-        <div class="stock-badge ${cls}">📦 Stock: <strong>${s}</strong></div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
+          <div class="stock-badge ${cls}">📦 Stock: <strong>${s}</strong></div>
+          ${costoHtml}
+        </div>
       </div>
       ${isAdmin?`<div class="item-actions">
         <button class="btn btn-secondary btn-sm" onclick="openEditModal(${i.id})">✏️</button>
@@ -632,6 +641,7 @@ function openAddModal(){
   document.getElementById('itemModalTitle').textContent='Agregar Accesorio';
   ['iCode','iName','iCat'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('iStock').value='100';
+  document.getElementById('iCost').value='';
   openModal('itemModal');
 }
 function openEditModal(id){
@@ -643,6 +653,7 @@ function openEditModal(id){
   document.getElementById('iName').value=item.name;
   document.getElementById('iCat').value=item.cat||'';
   document.getElementById('iStock').value=Number(item.stock||0);
+  document.getElementById('iCost').value=Number(item.cost||0).toFixed(2);
   openModal('itemModal');
 }
 async function saveItem(){
@@ -651,9 +662,12 @@ async function saveItem(){
   const cat=document.getElementById('iCat').value.trim();
   const stockRaw=document.getElementById('iStock').value.trim();
   const stock=stockRaw===''?null:Math.max(0,parseInt(stockRaw,10)||0);
+  const costRaw=document.getElementById('iCost').value.trim();
+  const cost=costRaw===''?null:Math.max(0,parseFloat(costRaw)||0);
   if(!code||!name){showToast('Código y nombre son obligatorios',true);return;}
   const payload={code,name,cat};
   if(stock!==null) payload.stock=stock;
+  if(cost!==null) payload.cost=cost;
   try{
     showLoader(true);
     if(editingItemId){
@@ -772,29 +786,38 @@ function renderHistHoy(){
     div.innerHTML=`<div class="empty-state"><span class="empty-icon">📋</span><p>No hay registros hoy<br><span style="font-size:12px;">${formatDate(today)}</span></p></div>`;
     return;
   }
+  const isAdmin=currentUser.role==='admin';
   const summary={};
   usage.forEach(u=>u.items.forEach(i=>{
-    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0};
+    const c=getCostByCode(i.code);
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0,cost:c,subtotal:0};
     summary[i.code].total+=i.qtyUsed;
+    summary[i.code].subtotal+=i.qtyUsed*c;
   }));
   const totalUnidades=Object.values(summary).reduce((a,s)=>a+s.total,0);
+  const totalCosto=Object.values(summary).reduce((a,s)=>a+s.subtotal,0);
   const totalRegs=usage.length;
-  const isAdmin=currentUser.role==='admin';
 
   // Registros individuales (para admin con botón borrar)
   const regsHtml=usage.map((u,idx)=>{
     const total=u.items.reduce((a,i)=>a+i.qtyUsed,0);
-    const detalle=u.items.map(i=>`
+    const subtotalReg=u.items.reduce((a,i)=>a+i.qtyUsed*getCostByCode(i.code),0);
+    const detalle=u.items.map(i=>{
+      const c=getCostByCode(i.code);
+      const sub=c*i.qtyUsed;
+      const costoLine=isAdmin?`<div style="font-size:11px;color:var(--text2);">${formatLempira(c)} c/u · <strong style="color:var(--green)">${formatLempira(sub)}</strong></div>`:'';
+      return `
       <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
-        <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div></div>
+        <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div>${costoLine}</div>
         <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:var(--accent);">${i.qtyUsed}</div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
     const hora=formatTime(u.ts);
     return `<div class="uso-card" style="margin-bottom:8px;">
       <div class="uso-card-header" onclick="toggleUsoH('rh-${idx}')">
         <div class="uso-card-info">
           <div class="uso-card-title">🕐 ${hora} &nbsp;<span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">por ${esc(u.user)}</span></div>
-          <div class="uso-card-sub">${u.items.length} artículo(s) · <strong style="color:var(--accent)">${total}</strong> unidades</div>
+          <div class="uso-card-sub">${u.items.length} artículo(s) · <strong style="color:var(--accent)">${total}</strong> unidades${isAdmin?` · <strong style="color:var(--green)">${formatLempira(subtotalReg)}</strong>`:''}</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
           ${isAdmin?`<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteUsageRecord(${u.id})">🗑️</button>`:''}
@@ -808,18 +831,24 @@ function renderHistHoy(){
     </div>`;
   }).join('');
 
+  const costoBox=isAdmin?`
+    <div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(46,160,67,.35);">
+      <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total del día</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(totalCosto)}</div>
+    </div>`:'';
   div.innerHTML=`
     <div style="background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:12px;display:flex;justify-content:space-between;">
       <div><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--accent)">${totalUnidades}</div><div style="color:var(--text2);font-size:11px;">unidades totales</div></div>
       <div style="text-align:center"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--blue)">${totalRegs}</div><div style="color:var(--text2);font-size:11px;">registros del día</div></div>
       <div style="text-align:right"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--green)">${Object.keys(summary).length}</div><div style="color:var(--text2);font-size:11px;">tipos diferentes</div></div>
     </div>
+    ${costoBox}
     <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📅 ${formatDate(today)} — Resumen total</div>
     ${Object.values(summary).sort((a,b)=>b.total-a.total).map(s=>`
       <div class="hist-item">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)}</div>
+          <div class="item-code">${esc(s.code)}${isAdmin?` · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span> <span style="color:var(--text2);">(${formatLempira(s.cost)} c/u)</span>`:''}</div>
         </div>
         <div class="hist-qty">${s.total}</div>
       </div>`).join('')}
@@ -873,10 +902,13 @@ function renderHistSemana(){
   // Resumen total de la semana
   const summary={};
   usage.forEach(u=>u.items.forEach(i=>{
-    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0};
+    const c=getCostByCode(i.code);
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0,cost:c,subtotal:0};
     summary[i.code].total+=i.qtyUsed;
+    summary[i.code].subtotal+=i.qtyUsed*c;
   }));
   const totalUnidades=Object.values(summary).reduce((a,s)=>a+s.total,0);
+  const totalCosto=Object.values(summary).reduce((a,s)=>a+s.subtotal,0);
 
   // Agrupar por día
   const byDay={};
@@ -891,12 +923,16 @@ function renderHistSemana(){
       <div style="text-align:center"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--blue)">${usage.length}</div><div style="color:var(--text2);font-size:11px;">registros</div></div>
       <div style="text-align:right"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--green)">${Object.keys(byDay).length}</div><div style="color:var(--text2);font-size:11px;">días activos</div></div>
     </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(46,160,67,.35);">
+      <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total semana</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(totalCosto)}</div>
+    </div>
     <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📊 Resumen semanal — ${formatDate(monday)} al ${formatDate(sunday)}</div>
     ${Object.values(summary).sort((a,b)=>b.total-a.total).map(s=>`
       <div class="hist-item">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)}</div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span> <span style="color:var(--text2);">(${formatLempira(s.cost)} c/u)</span></div>
         </div>
         <div class="hist-qty">${s.total}</div>
       </div>`).join('')}
@@ -906,16 +942,19 @@ function renderHistSemana(){
     const regs=byDay[date];
     const daySummary={};
     regs.forEach(u=>u.items.forEach(i=>{
-      if(!daySummary[i.code]) daySummary[i.code]={code:i.code,name:i.name,total:0};
+      const c=getCostByCode(i.code);
+      if(!daySummary[i.code]) daySummary[i.code]={code:i.code,name:i.name,total:0,cost:c,subtotal:0};
       daySummary[i.code].total+=i.qtyUsed;
+      daySummary[i.code].subtotal+=i.qtyUsed*c;
     }));
     const dayTotal=Object.values(daySummary).reduce((a,s)=>a+s.total,0);
-    html+=`<div class="hist-day-header"><span>📅 ${formatDate(date)}</span><strong>${dayTotal} uds.</strong></div>`;
+    const dayCosto=Object.values(daySummary).reduce((a,s)=>a+s.subtotal,0);
+    html+=`<div class="hist-day-header"><span>📅 ${formatDate(date)}</span><span><strong>${dayTotal} uds.</strong> · <strong style="color:var(--green)">${formatLempira(dayCosto)}</strong></span></div>`;
     html+=Object.values(daySummary).sort((a,b)=>b.total-a.total).map(s=>`
       <div class="hist-item" style="margin-bottom:6px;">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)}</div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span></div>
         </div>
         <div class="hist-qty" style="font-size:20px;">${s.total}</div>
       </div>`).join('');
@@ -923,18 +962,23 @@ function renderHistSemana(){
     html+=`<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:8px 0 4px;padding-left:4px;">Registros individuales — toca 🗑️ para eliminar</div>`;
     html+=regs.map((u,ri)=>{
       const total=u.items.reduce((a,i)=>a+i.qtyUsed,0);
+      const subtotalReg=u.items.reduce((a,i)=>a+i.qtyUsed*getCostByCode(i.code),0);
       const hora=formatTime(u.ts);
       const key='sw-'+date.replace(/-/g,'')+'-'+ri;
-      const detalle=u.items.map(i=>`
+      const detalle=u.items.map(i=>{
+        const c=getCostByCode(i.code);
+        const sub=c*i.qtyUsed;
+        return `
         <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
-          <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div></div>
+          <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div><div style="font-size:11px;color:var(--text2);">${formatLempira(c)} c/u · <strong style="color:var(--green)">${formatLempira(sub)}</strong></div></div>
           <div style="font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;color:var(--accent);">${i.qtyUsed}</div>
-        </div>`).join('');
+        </div>`;
+      }).join('');
       return `<div class="uso-card" style="margin-bottom:6px;">
         <div class="uso-card-header" onclick="toggleUsoH('${key}')">
           <div class="uso-card-info">
             <div class="uso-card-title">🕐 ${hora} · <span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">${esc(u.user)}</span></div>
-            <div class="uso-card-sub">${u.items.length} art. · <strong style="color:var(--accent)">${total}</strong> uds.</div>
+            <div class="uso-card-sub">${u.items.length} art. · <strong style="color:var(--accent)">${total}</strong> uds. · <strong style="color:var(--green)">${formatLempira(subtotalReg)}</strong></div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
             <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteUsageRecord(${u.id})">🗑️</button>
@@ -971,10 +1015,13 @@ function renderHistMes(){
   // Resumen total del mes
   const summary={};
   usage.forEach(u=>u.items.forEach(i=>{
-    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0};
+    const c=getCostByCode(i.code);
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0,cost:c,subtotal:0};
     summary[i.code].total+=i.qtyUsed;
+    summary[i.code].subtotal+=i.qtyUsed*c;
   }));
   const totalUnidades=Object.values(summary).reduce((a,s)=>a+s.total,0);
+  const totalCosto=Object.values(summary).reduce((a,s)=>a+s.subtotal,0);
 
   // Agrupar por día
   const byDay={};
@@ -989,12 +1036,16 @@ function renderHistMes(){
       <div style="text-align:center"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--blue)">${usage.length}</div><div style="color:var(--text2);font-size:11px;">registros</div></div>
       <div style="text-align:right"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--green)">${Object.keys(byDay).length}</div><div style="color:var(--text2);font-size:11px;">días activos</div></div>
     </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(46,160,67,.35);">
+      <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total ${tituloMes}</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(totalCosto)}</div>
+    </div>
     <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📆 Resumen de ${tituloMes}</div>
     ${Object.values(summary).sort((a,b)=>b.total-a.total).map(s=>`
       <div class="hist-item">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)}</div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span> <span style="color:var(--text2);">(${formatLempira(s.cost)} c/u)</span></div>
         </div>
         <div class="hist-qty">${s.total}</div>
       </div>`).join('')}
@@ -1004,34 +1055,42 @@ function renderHistMes(){
     const regs=byDay[date];
     const daySummary={};
     regs.forEach(u=>u.items.forEach(i=>{
-      if(!daySummary[i.code]) daySummary[i.code]={code:i.code,name:i.name,total:0};
+      const c=getCostByCode(i.code);
+      if(!daySummary[i.code]) daySummary[i.code]={code:i.code,name:i.name,total:0,cost:c,subtotal:0};
       daySummary[i.code].total+=i.qtyUsed;
+      daySummary[i.code].subtotal+=i.qtyUsed*c;
     }));
     const dayTotal=Object.values(daySummary).reduce((a,s)=>a+s.total,0);
-    html+=`<div class="hist-day-header"><span>📅 ${formatDate(date)}</span><strong>${dayTotal} uds.</strong></div>`;
+    const dayCosto=Object.values(daySummary).reduce((a,s)=>a+s.subtotal,0);
+    html+=`<div class="hist-day-header"><span>📅 ${formatDate(date)}</span><span><strong>${dayTotal} uds.</strong> · <strong style="color:var(--green)">${formatLempira(dayCosto)}</strong></span></div>`;
     html+=Object.values(daySummary).sort((a,b)=>b.total-a.total).map(s=>`
       <div class="hist-item" style="margin-bottom:6px;">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)}</div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span></div>
         </div>
         <div class="hist-qty" style="font-size:20px;">${s.total}</div>
       </div>`).join('');
     html+=`<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:8px 0 4px;padding-left:4px;">Registros individuales — toca 🗑️ para eliminar</div>`;
     html+=regs.map((u,ri)=>{
       const total=u.items.reduce((a,i)=>a+i.qtyUsed,0);
+      const subtotalReg=u.items.reduce((a,i)=>a+i.qtyUsed*getCostByCode(i.code),0);
       const hora=formatTime(u.ts);
       const key='sm-'+date.replace(/-/g,'')+'-'+ri;
-      const detalle=u.items.map(i=>`
+      const detalle=u.items.map(i=>{
+        const c=getCostByCode(i.code);
+        const sub=c*i.qtyUsed;
+        return `
         <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
-          <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div></div>
+          <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div><div style="font-size:11px;color:var(--text2);">${formatLempira(c)} c/u · <strong style="color:var(--green)">${formatLempira(sub)}</strong></div></div>
           <div style="font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;color:var(--accent);">${i.qtyUsed}</div>
-        </div>`).join('');
+        </div>`;
+      }).join('');
       return `<div class="uso-card" style="margin-bottom:6px;">
         <div class="uso-card-header" onclick="toggleUsoH('${key}')">
           <div class="uso-card-info">
             <div class="uso-card-title">🕐 ${hora} · <span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">${esc(u.user)}</span></div>
-            <div class="uso-card-sub">${u.items.length} art. · <strong style="color:var(--accent)">${total}</strong> uds.</div>
+            <div class="uso-card-sub">${u.items.length} art. · <strong style="color:var(--accent)">${total}</strong> uds. · <strong style="color:var(--green)">${formatLempira(subtotalReg)}</strong></div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
             <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteUsageRecord(${u.id})">🗑️</button>
@@ -1047,12 +1106,29 @@ function renderHistMes(){
 }
 
 // ── REPORTES EXCEL ───────────────────────────────────────
+// Formato numerico estilo "L. 1,234.56" para Excel.
+const LPS_FMT='"L." #,##0.00';
+function applyCostoFormat(ws,colLetters){
+  // colLetters: array de letras de columna a formatear como Lempiras (ej: ['D','E']).
+  const range=XLSX.utils.decode_range(ws['!ref']);
+  for(const L of colLetters){
+    const col=XLSX.utils.decode_col(L);
+    for(let r=1;r<=range.e.r;r++){ // saltar header
+      const addr=XLSX.utils.encode_cell({c:col,r});
+      const cell=ws[addr];
+      if(cell&&typeof cell.v==='number') cell.z=LPS_FMT;
+    }
+  }
+}
+
 function getSummaryForDate(date){
   const usage=getUsage().filter(u=>u.date===date);
   const summary={};
   usage.forEach(u=>u.items.forEach(i=>{
-    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0};
+    const c=getCostByCode(i.code);
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0,cost:c,subtotal:0};
     summary[i.code].total+=i.qtyUsed;
+    summary[i.code].subtotal+=i.qtyUsed*c;
   }));
   return Object.values(summary);
 }
@@ -1062,10 +1138,17 @@ function exportDaily(){
   if(!date){showToast('Selecciona una fecha',true);return;}
   const rows=getSummaryForDate(date);
   if(rows.length===0){showToast('No hay uso registrado para esa fecha',true);return;}
+  const totalUds=rows.reduce((a,r)=>a+r.total,0);
+  const totalCost=rows.reduce((a,r)=>a+r.subtotal,0);
   const wb=XLSX.utils.book_new();
-  const wsData=[['Codigo','Descripcion','Cantidad Utilizado'],...rows.map(r=>[r.code,r.name,r.total])];
+  const wsData=[
+    ['Codigo','Descripcion','Cantidad Utilizado','Costo Unit. (L.)','Subtotal (L.)'],
+    ...rows.map(r=>[r.code,r.name,r.total,r.cost,r.subtotal]),
+    ['','TOTAL',totalUds,'',totalCost],
+  ];
   const ws=XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols']=[{wch:14},{wch:38},{wch:20}];
+  ws['!cols']=[{wch:14},{wch:38},{wch:18},{wch:18},{wch:18}];
+  applyCostoFormat(ws,['D','E']);
   XLSX.utils.book_append_sheet(wb,ws,'Reporte Diario');
   XLSX.writeFile(wb,`Reporte_Diario_${date}.xlsx`);
   showToast('📥 Excel descargado');
@@ -1080,17 +1163,38 @@ function exportWeekly(){
   if(usage.length===0){showToast('No hay uso en esa semana',true);return;}
   const summary={};
   usage.forEach(u=>u.items.forEach(i=>{
-    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0};
+    const c=getCostByCode(i.code);
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0,cost:c,subtotal:0};
     summary[i.code].total+=i.qtyUsed;
+    summary[i.code].subtotal+=i.qtyUsed*c;
   }));
+  const list=Object.values(summary).sort((a,b)=>b.total-a.total);
+  const totalUds=list.reduce((a,r)=>a+r.total,0);
+  const totalCost=list.reduce((a,r)=>a+r.subtotal,0);
   const wb=XLSX.utils.book_new();
-  const ws1=XLSX.utils.aoa_to_sheet([['Codigo','Descripcion','Cantidad Utilizado'],...Object.values(summary).map(s=>[s.code,s.name,s.total])]);
-  ws1['!cols']=[{wch:14},{wch:38},{wch:20}];
+  const ws1=XLSX.utils.aoa_to_sheet([
+    ['Codigo','Descripcion','Cantidad Utilizado','Costo Unit. (L.)','Subtotal (L.)'],
+    ...list.map(s=>[s.code,s.name,s.total,s.cost,s.subtotal]),
+    ['','TOTAL',totalUds,'',totalCost],
+  ]);
+  ws1['!cols']=[{wch:14},{wch:38},{wch:18},{wch:18},{wch:18}];
+  applyCostoFormat(ws1,['D','E']);
   XLSX.utils.book_append_sheet(wb,ws1,'Resumen Semanal');
   const detRows=[];
-  usage.forEach(u=>u.items.forEach(i=>detRows.push([u.date,i.code,i.name,i.qtyUsed,u.user])));
-  const ws2=XLSX.utils.aoa_to_sheet([['Fecha','Codigo','Descripcion','Cantidad Utilizado','Registrado Por'],...detRows]);
-  ws2['!cols']=[{wch:12},{wch:14},{wch:38},{wch:20},{wch:18}];
+  let detTotalUds=0,detTotalCost=0;
+  usage.forEach(u=>u.items.forEach(i=>{
+    const c=getCostByCode(i.code);
+    const sub=i.qtyUsed*c;
+    detTotalUds+=i.qtyUsed;detTotalCost+=sub;
+    detRows.push([u.date,i.code,i.name,i.qtyUsed,c,sub,u.user]);
+  }));
+  const ws2=XLSX.utils.aoa_to_sheet([
+    ['Fecha','Codigo','Descripcion','Cantidad Utilizado','Costo Unit. (L.)','Subtotal (L.)','Registrado Por'],
+    ...detRows,
+    ['','','TOTAL',detTotalUds,'',detTotalCost,''],
+  ]);
+  ws2['!cols']=[{wch:12},{wch:14},{wch:38},{wch:18},{wch:18},{wch:18},{wch:18}];
+  applyCostoFormat(ws2,['E','F']);
   XLSX.utils.book_append_sheet(wb,ws2,'Detalle por Dia');
   XLSX.writeFile(wb,`Reporte_Semanal_${monday}_al_${sunday}.xlsx`);
   showToast('📥 Excel semanal descargado');
@@ -1107,18 +1211,39 @@ function exportMonthly(){
   if(usage.length===0){showToast('No hay uso en ese mes',true);return;}
   const summary={};
   usage.forEach(u=>u.items.forEach(i=>{
-    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0};
+    const c=getCostByCode(i.code);
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0,cost:c,subtotal:0};
     summary[i.code].total+=i.qtyUsed;
+    summary[i.code].subtotal+=i.qtyUsed*c;
   }));
+  const list=Object.values(summary).sort((a,b)=>b.total-a.total);
+  const totalUds=list.reduce((a,r)=>a+r.total,0);
+  const totalCost=list.reduce((a,r)=>a+r.subtotal,0);
   const wb=XLSX.utils.book_new();
-  const ws1=XLSX.utils.aoa_to_sheet([['Codigo','Descripcion','Cantidad Utilizado'],...Object.values(summary).sort((a,b)=>b.total-a.total).map(s=>[s.code,s.name,s.total])]);
-  ws1['!cols']=[{wch:14},{wch:38},{wch:20}];
+  const ws1=XLSX.utils.aoa_to_sheet([
+    ['Codigo','Descripcion','Cantidad Utilizado','Costo Unit. (L.)','Subtotal (L.)'],
+    ...list.map(s=>[s.code,s.name,s.total,s.cost,s.subtotal]),
+    ['','TOTAL',totalUds,'',totalCost],
+  ]);
+  ws1['!cols']=[{wch:14},{wch:38},{wch:18},{wch:18},{wch:18}];
+  applyCostoFormat(ws1,['D','E']);
   XLSX.utils.book_append_sheet(wb,ws1,'Resumen del Mes');
   const detRows=[];
-  usage.forEach(u=>u.items.forEach(i=>detRows.push([u.date,i.code,i.name,i.qtyUsed,u.user])));
+  let detTotalUds=0,detTotalCost=0;
+  usage.forEach(u=>u.items.forEach(i=>{
+    const c=getCostByCode(i.code);
+    const sub=i.qtyUsed*c;
+    detTotalUds+=i.qtyUsed;detTotalCost+=sub;
+    detRows.push([u.date,i.code,i.name,i.qtyUsed,c,sub,u.user]);
+  }));
   detRows.sort((a,b)=>a[0].localeCompare(b[0]));
-  const ws2=XLSX.utils.aoa_to_sheet([['Fecha','Codigo','Descripcion','Cantidad Utilizado','Registrado Por'],...detRows]);
-  ws2['!cols']=[{wch:12},{wch:14},{wch:38},{wch:20},{wch:18}];
+  const ws2=XLSX.utils.aoa_to_sheet([
+    ['Fecha','Codigo','Descripcion','Cantidad Utilizado','Costo Unit. (L.)','Subtotal (L.)','Registrado Por'],
+    ...detRows,
+    ['','','TOTAL',detTotalUds,'',detTotalCost,''],
+  ]);
+  ws2['!cols']=[{wch:12},{wch:14},{wch:38},{wch:18},{wch:18},{wch:18},{wch:18}];
+  applyCostoFormat(ws2,['E','F']);
   XLSX.utils.book_append_sheet(wb,ws2,'Detalle por Dia');
   XLSX.writeFile(wb,`Reporte_Mensual_${ym}.xlsx`);
   showToast('📥 Excel mensual descargado');
@@ -1131,29 +1256,47 @@ function exportYearly(){
   const usage=getUsage().filter(u=>u.date&&u.date.slice(0,4)===yStr);
   if(usage.length===0){showToast('No hay uso en ese año',true);return;}
   const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  // Resumen: fila por codigo, columnas Ene..Dic + Total
+  // Resumen: fila por codigo, columnas Ene..Dic + Total + Costo + Subtotal
   const byCode={};
   usage.forEach(u=>{
     const mi=parseInt(u.date.slice(5,7),10)-1;
     u.items.forEach(i=>{
-      if(!byCode[i.code]) byCode[i.code]={code:i.code,name:i.name,months:Array(12).fill(0)};
+      const c=getCostByCode(i.code);
+      if(!byCode[i.code]) byCode[i.code]={code:i.code,name:i.name,cost:c,months:Array(12).fill(0),monthsCost:Array(12).fill(0)};
       byCode[i.code].months[mi]+=i.qtyUsed;
+      byCode[i.code].monthsCost[mi]+=i.qtyUsed*c;
     });
   });
-  const header=['Codigo','Descripcion',...meses,'Total Anual'];
+  const header=['Codigo','Descripcion',...meses,'Total Anual','Costo Unit. (L.)','Subtotal Anual (L.)'];
   const rows=Object.values(byCode).map(r=>{
     const total=r.months.reduce((a,b)=>a+b,0);
-    return [r.code,r.name,...r.months,total];
+    const subtotal=r.monthsCost.reduce((a,b)=>a+b,0);
+    return [r.code,r.name,...r.months,total,r.cost,subtotal];
   }).sort((a,b)=>b[14]-a[14]);
+  // Fila de TOTAL al final del resumen anual
+  const totalsRow=['','TOTAL'];
+  for(let mi=0;mi<12;mi++) totalsRow.push(rows.reduce((a,r)=>a+r[2+mi],0));
+  totalsRow.push(rows.reduce((a,r)=>a+r[14],0)); // Total anual uds
+  totalsRow.push(''); // costo unit no aplica
+  totalsRow.push(rows.reduce((a,r)=>a+r[16],0)); // Subtotal anual L.
   const wb=XLSX.utils.book_new();
-  const ws1=XLSX.utils.aoa_to_sheet([header,...rows]);
-  ws1['!cols']=[{wch:14},{wch:38},...Array(12).fill({wch:10}),{wch:14}];
+  const ws1=XLSX.utils.aoa_to_sheet([header,...rows,totalsRow]);
+  ws1['!cols']=[{wch:14},{wch:38},...Array(12).fill({wch:10}),{wch:14},{wch:18},{wch:20}];
+  // Columnas O (Costo Unit) y P (Subtotal Anual): formato lempira
+  applyCostoFormat(ws1,['O','P']);
   XLSX.utils.book_append_sheet(wb,ws1,'Resumen Anual');
-  // Totales por mes
-  const monthTotals=meses.map((n,i)=>[n,rows.reduce((a,r)=>a+r[2+i],0)]);
-  monthTotals.push(['TOTAL ANUAL',rows.reduce((a,r)=>a+r[14],0)]);
-  const ws2=XLSX.utils.aoa_to_sheet([['Mes','Cantidad Utilizado'],...monthTotals]);
-  ws2['!cols']=[{wch:16},{wch:20}];
+  // Totales por mes (uds + costo)
+  const monthTotals=meses.map((n,i)=>[
+    n,
+    rows.reduce((a,r)=>a+r[2+i],0),
+    Object.values(byCode).reduce((a,r)=>a+r.monthsCost[i],0),
+  ]);
+  const totUds=monthTotals.reduce((a,r)=>a+r[1],0);
+  const totCost=monthTotals.reduce((a,r)=>a+r[2],0);
+  monthTotals.push(['TOTAL ANUAL',totUds,totCost]);
+  const ws2=XLSX.utils.aoa_to_sheet([['Mes','Cantidad Utilizado','Costo Total (L.)'],...monthTotals]);
+  ws2['!cols']=[{wch:16},{wch:20},{wch:22}];
+  applyCostoFormat(ws2,['C']);
   XLSX.utils.book_append_sheet(wb,ws2,'Totales por Mes');
   XLSX.writeFile(wb,`Reporte_Anual_${yStr}.xlsx`);
   showToast('📥 Excel anual descargado');
@@ -1276,6 +1419,15 @@ function getSundayOf(mondayStr){
   return d.toISOString().split('T')[0];
 }
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function formatLempira(n){
+  const v=Number(n||0);
+  return 'L. '+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function getCostByCode(code){
+  if(!code) return 0;
+  const it=getInventory().find(i=>i.code===code);
+  return it?Number(it.cost||0):0;
+}
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 document.querySelectorAll('.modal-overlay').forEach(m=>{

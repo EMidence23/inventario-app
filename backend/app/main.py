@@ -1,6 +1,8 @@
 """FastAPI app: CORS, tablas, seed, rutas."""
 from __future__ import annotations
 
+import random
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -9,7 +11,7 @@ from sqlalchemy import inspect, text
 from .auth import hash_password
 from .config import settings
 from .db import Base, SessionLocal, engine
-from .models import User
+from .models import InventoryItem, User
 from .routes import auth as auth_routes
 from .routes import inventory as inventory_routes
 from .routes import usage as usage_routes
@@ -75,6 +77,37 @@ def _migrate_add_missing_columns() -> None:
                 # valor razonable (el admin puede ajustarlo despues).
                 conn.execute(text("ALTER TABLE inventory_items ADD COLUMN stock INTEGER NOT NULL DEFAULT 0"))
                 conn.execute(text("UPDATE inventory_items SET stock = 100 WHERE stock = 0"))
+            if "cost" not in existing:
+                # Nuevo campo de costo unitario en lempiras. Sembramos un
+                # costo aleatorio en cada producto existente solo como
+                # placeholder; el admin lo reemplaza con los valores reales.
+                conn.execute(
+                    text(
+                        "ALTER TABLE inventory_items "
+                        "ADD COLUMN cost DOUBLE PRECISION NOT NULL DEFAULT 0"
+                        if not is_sqlite
+                        else "ALTER TABLE inventory_items ADD COLUMN cost REAL NOT NULL DEFAULT 0"
+                    )
+                )
+
+
+def _seed_random_costs() -> None:
+    """Asigna un costo aleatorio inicial (placeholder) a productos cuyo
+    costo siga en 0.
+
+    Se usa una semilla derivada del id del producto para que el mismo item
+    siempre reciba el mismo numero pseudo-aleatorio en sucesivos arranques
+    (idempotente). El admin puede sobrescribirlo desde la UI; al editar el
+    valor real, este seed deja de tocarlo (solo afecta filas con cost=0).
+    """
+    with SessionLocal() as db:
+        rows = db.query(InventoryItem).filter(InventoryItem.cost == 0).all()
+        if not rows:
+            return
+        for item in rows:
+            rng = random.Random(f"vimeco-cost-seed-{item.id}-{item.code}")
+            item.cost = round(rng.uniform(5.0, 1500.0), 2)
+        db.commit()
 
 
 def _seed_default_users() -> None:
@@ -113,6 +146,7 @@ def create_app() -> FastAPI:
     Base.metadata.create_all(bind=engine)
     _migrate_add_missing_columns()
     _seed_default_users()
+    _seed_random_costs()
 
     app.include_router(auth_routes.router)
     app.include_router(users_routes.router)

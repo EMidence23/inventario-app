@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -27,6 +27,7 @@ class InventoryItem(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     cat: Mapped[str] = mapped_column(String(80), default="")
     stock: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    cost: Mapped[float] = mapped_column(Float, nullable=False, default=0.0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
