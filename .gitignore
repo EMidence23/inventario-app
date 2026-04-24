@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.sqlite
+*.db
+
+# Env
+.env
+.env.local
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Build
+dist/
+build/
+
+# Fly / deploy artifacts generated outside the repo
+.fly/

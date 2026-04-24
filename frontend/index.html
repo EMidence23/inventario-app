@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Control de Inventario</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Noto+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;--accent:#f97316;--accent2:#fb923c;--text:#e6edf3;--text2:#8b949e;--green:#3fb950;--red:#f85149;--blue:#58a6ff;}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;font-size:14px;min-height:100vh;overscroll-behavior:none;}
+h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
+.screen{display:none;min-height:100vh;flex-direction:column;}
+.screen.active{display:flex;}
+
+/* LOGIN */
+#loginScreen{justify-content:center;align-items:center;padding:24px;background:radial-gradient(ellipse at 50% 0%,#1a2332 0%,var(--bg) 70%);}
+.login-logo{text-align:center;margin-bottom:32px;}
+.login-logo .icon{font-size:48px;display:block;margin-bottom:8px;}
+.login-logo h1{font-size:28px;color:var(--accent);letter-spacing:2px;}
+.login-logo p{color:var(--text2);font-size:12px;margin-top:4px;}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px 24px;width:100%;max-width:360px;}
+.form-group{margin-bottom:16px;}
+.form-group label{display:block;color:var(--text2);font-size:12px;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;}
+.form-group input,.form-group select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:12px 14px;font-size:15px;font-family:'Noto Sans',sans-serif;outline:none;transition:border-color .2s;}
+.form-group input:focus,.form-group select:focus{border-color:var(--accent);}
+.btn{width:100%;padding:13px;border:none;border-radius:8px;font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:600;letter-spacing:1px;cursor:pointer;transition:all .2s;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:active{background:var(--accent2);transform:scale(.97);}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
+.btn-danger{background:var(--red);color:#fff;}
+.btn-sm{padding:7px 12px;font-size:13px;width:auto;border-radius:6px;}
+.btn-green{background:var(--green);color:#fff;}
+.login-error{color:var(--red);font-size:13px;text-align:center;margin-top:12px;display:none;}
+
+/* HEADER */
+.app-header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.app-header h2{font-size:19px;color:var(--accent);}
+.header-right{display:flex;align-items:center;gap:8px;}
+.badge-role{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 9px;font-size:11px;color:var(--text2);}
+.badge-role.admin{border-color:var(--accent);color:var(--accent);}
+.btn-logout{background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:4px;}
+
+/* BOTTOM NAV - 6 tabs */
+.bottom-nav{background:var(--surface);border-top:1px solid var(--border);display:flex;position:fixed;bottom:0;left:0;right:0;z-index:100;}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 2px 6px;cursor:pointer;color:var(--text2);border:none;background:none;transition:color .2s;}
+.nav-item.active{color:var(--accent);}
+.nav-item .nav-icon{font-size:20px;line-height:1;}
+.nav-item .nav-label{font-size:9px;margin-top:2px;font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:.3px;}
+.content{flex:1;padding:14px;padding-bottom:78px;overflow-y:auto;}
+.tab-view{display:none;}
+.tab-view.active{display:block;}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;}
+.stat-card .stat-val{font-family:'Rajdhani',sans-serif;font-size:30px;font-weight:700;color:var(--accent);}
+.stat-card .stat-label{color:var(--text2);font-size:11px;margin-top:2px;}
+.section-title{font-family:'Rajdhani',sans-serif;font-size:15px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:14px 0 8px;}
+
+/* SEARCH */
+.search-bar{position:relative;margin-bottom:12px;}
+.search-bar input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 14px 10px 38px;font-size:14px;outline:none;font-family:'Noto Sans',sans-serif;}
+.search-bar input:focus{border-color:var(--accent);}
+.search-bar .si{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text2);font-size:15px;}
+
+/* ITEM CARD */
+.item-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:9px;display:flex;align-items:center;gap:10px;}
+.item-info{flex:1;min-width:0;}
+.item-name{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.item-code{color:var(--text2);font-size:12px;margin-top:2px;}
+.item-actions{display:flex;gap:6px;}
+
+/* USO RECIENTE - EXPANDIBLE */
+.uso-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:9px;overflow:hidden;}
+.uso-card-header{padding:13px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;user-select:none;}
+.uso-card-header:active{background:var(--surface2);}
+.uso-card-info{flex:1;}
+.uso-card-title{font-weight:600;font-size:14px;}
+.uso-card-sub{color:var(--text2);font-size:12px;margin-top:2px;}
+.uso-chevron{color:var(--text2);font-size:14px;transition:transform .25s;flex-shrink:0;}
+.uso-chevron.open{transform:rotate(180deg);}
+.uso-detail{display:none;border-top:1px solid var(--border);padding:10px 14px 12px;}
+.uso-detail.open{display:block;}
+.uso-detail-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);}
+.uso-detail-row:last-child{border-bottom:none;}
+.uso-detail-name{font-size:13px;color:var(--text);}
+.uso-detail-code{font-size:11px;color:var(--text2);}
+.uso-detail-qty{font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:var(--accent);}
+
+/* HISTORIAL TABS */
+.hist-tabs{display:flex;background:var(--surface2);border-radius:10px;padding:3px;margin-bottom:14px;gap:3px;}
+.hist-tab{flex:1;padding:9px;border:none;border-radius:7px;font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:600;cursor:pointer;background:none;color:var(--text2);transition:all .2s;}
+.hist-tab.active{background:var(--accent);color:#fff;}
+.hist-panel{display:none;}
+.hist-panel.active{display:block;}
+
+/* HISTORIAL ITEM */
+.hist-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;}
+.hist-qty{font-family:'Rajdhani',sans-serif;font-size:26px;font-weight:700;color:var(--accent);min-width:48px;text-align:right;}
+.hist-day-header{background:var(--surface2);border-radius:8px;padding:8px 12px;margin:12px 0 6px;display:flex;justify-content:space-between;align-items:center;}
+.hist-day-header span{font-family:'Rajdhani',sans-serif;font-size:14px;color:var(--text2);}
+.hist-day-header strong{font-family:'Rajdhani',sans-serif;font-size:14px;color:var(--accent);}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:flex-end;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:500px;padding:22px;border-top:1px solid var(--border);max-height:90vh;overflow-y:auto;}
+.modal-title{font-family:'Rajdhani',sans-serif;font-size:21px;color:var(--accent);margin-bottom:18px;}
+.modal-actions{display:flex;gap:10px;margin-top:18px;}
+.modal-actions .btn{flex:1;}
+
+/* REPORTES */
+.report-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:11px;}
+.report-card h3{font-family:'Rajdhani',sans-serif;font-size:17px;color:var(--text);margin-bottom:5px;}
+.report-card p{color:var(--text2);font-size:12px;margin-bottom:12px;}
+.date-picker{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;font-family:'Noto Sans',sans-serif;width:100%;margin-bottom:10px;outline:none;}
+.date-picker:focus{border-color:var(--accent);}
+
+/* USO FORM */
+.usage-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 12px;margin-bottom:7px;display:flex;align-items:center;gap:10px;}
+.qty-input{width:68px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px;text-align:center;font-size:16px;font-family:'Rajdhani',sans-serif;font-weight:600;outline:none;}
+.qty-input:focus{border-color:var(--accent);}
+
+/* USUARIOS */
+.user-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px;margin-bottom:9px;display:flex;align-items:center;gap:11px;}
+.user-avatar{width:38px;height:38px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;color:#fff;flex-shrink:0;}
+.user-avatar.emp{background:var(--blue);}
+
+/* TOAST */
+.toast{position:fixed;top:18px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--green);color:#fff;padding:11px 18px;border-radius:10px;font-weight:600;z-index:500;transition:transform .3s;font-family:'Rajdhani',sans-serif;font-size:15px;white-space:nowrap;}
+.toast.error{background:var(--red);}
+.toast.show{transform:translateX(-50%) translateY(0);}
+
+/* MISC */
+.empty-state{text-align:center;padding:40px 16px;color:var(--text2);}
+.empty-state .empty-icon{font-size:44px;display:block;margin-bottom:10px;}
+.chip{display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:1px 9px;font-size:11px;color:var(--text2);}
+.locked-msg{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;color:var(--text2);font-size:13px;}
+.locked-msg .lock-icon{font-size:32px;display:block;margin-bottom:8px;}
+.loader-overlay{position:fixed;inset:0;background:rgba(13,17,23,.72);display:none;align-items:center;justify-content:center;z-index:9999;color:var(--text2);font-family:'Rajdhani',sans-serif;letter-spacing:1px;}
+.loader-overlay.show{display:flex;}
+.loader-spinner{width:42px;height:42px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin-right:14px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+</style>
+<meta name="api-base" content="__API_BASE__">
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen" class="screen active">
+  <div class="login-logo">
+    <span class="icon">📦</span>
+    <h1>INVENTARIO</h1>
+    <p>Sistema de Control de Accesorios</p>
+  </div>
+  <div class="login-card">
+    <div class="form-group">
+      <label>Usuario</label>
+      <input type="text" id="loginUser" placeholder="Ingresa tu usuario" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>Contraseña</label>
+      <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()">INGRESAR</button>
+    <div class="login-error" id="loginError">⚠️ Usuario o contraseña incorrectos</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appScreen" class="screen">
+  <div class="app-header">
+    <h2>📦 INVENTARIO</h2>
+    <div class="header-right">
+      <span class="badge-role" id="badgeRole">Empleado</span>
+      <button class="btn-logout" onclick="doLogout()">⏏️</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div id="tabDashboard" class="tab-view active">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-val" id="statTotal">0</div>
+          <div class="stat-label">Tipos de Accesorio</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="statUsedToday">0</div>
+          <div class="stat-label">Unidades Usadas Hoy</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="statRegsToday">0</div>
+          <div class="stat-label">Registros de Hoy</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="statUsedWeek">0</div>
+          <div class="stat-label">Usadas Esta Semana</div>
+        </div>
+      </div>
+      <div class="section-title">📋 Uso Reciente <span style="font-size:11px;color:var(--text2);font-family:'Noto Sans';text-transform:none;letter-spacing:0;">(toca para ver detalle)</span></div>
+      <div id="recentUsage"></div>
+    </div>
+
+    <!-- INVENTARIO -->
+    <div id="tabInventario" class="tab-view">
+      <div class="search-bar">
+        <span class="si">🔍</span>
+        <input type="search" id="searchInv" placeholder="Buscar por código o nombre..." oninput="renderInventory()">
+      </div>
+      <div id="adminAddBtn" style="display:none;margin-bottom:11px;">
+        <button class="btn btn-primary" onclick="openAddModal()">＋ Agregar Accesorio</button>
+      </div>
+      <div id="inventoryList"></div>
+    </div>
+
+    <!-- REGISTRAR USO -->
+    <div id="tabUso" class="tab-view">
+      <div class="section-title">📝 Registrar Uso del Día</div>
+      <p style="color:var(--text2);font-size:13px;margin-bottom:12px;">Anota la cantidad usada. Deja en 0 los que no se usaron.</p>
+      <div class="search-bar">
+        <span class="si">🔍</span>
+        <input type="search" id="searchUso" placeholder="Buscar accesorio..." oninput="renderUsageList()">
+      </div>
+      <div id="usageList"></div>
+      <button class="btn btn-primary" style="margin-top:14px;" onclick="saveUsage()">💾 GUARDAR USO</button>
+    </div>
+
+    <!-- HISTORIAL -->
+    <div id="tabHistorial" class="tab-view">
+      <div class="hist-tabs">
+        <button class="hist-tab active" id="htHoy" onclick="switchHistTab('hoy')">📅 HOY</button>
+        <button class="hist-tab" id="htSemana" onclick="switchHistTab('semana')">📊 SEMANA</button>
+      </div>
+
+      <!-- PANEL HOY -->
+      <div class="hist-panel active" id="hpHoy">
+        <div id="histHoyContent"></div>
+      </div>
+
+      <!-- PANEL SEMANA -->
+      <div class="hist-panel" id="hpSemana">
+        <div id="histSemanaContent"></div>
+      </div>
+    </div>
+
+    <!-- REPORTES -->
+    <div id="tabReportes" class="tab-view">
+      <div class="report-card">
+        <h3>📅 Reporte Diario</h3>
+        <p>Excel con el total de accesorios usados en un día.</p>
+        <input type="date" id="reportDate" class="date-picker">
+        <button class="btn btn-green" onclick="exportDaily()">⬇️ DESCARGAR EXCEL DIARIO</button>
+      </div>
+      <div class="report-card" id="reportSemanaCard">
+        <h3>📊 Reporte Semanal</h3>
+        <p>Excel con resumen de toda una semana. (Solo Admin)</p>
+        <input type="date" id="weekStart" class="date-picker">
+        <button class="btn btn-green" onclick="exportWeekly()">⬇️ DESCARGAR EXCEL SEMANAL</button>
+      </div>
+    </div>
+
+    <!-- USUARIOS -->
+    <div id="tabUsuarios" class="tab-view">
+      <button class="btn btn-primary" onclick="openAddUserModal()" style="margin-bottom:14px;">＋ Agregar Usuario</button>
+      <div id="userList"></div>
+    </div>
+
+  </div>
+
+  <nav class="bottom-nav">
+    <button class="nav-item active" onclick="switchTab('Dashboard')" id="nav-Dashboard">
+      <span class="nav-icon">🏠</span><span class="nav-label">INICIO</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('Inventario')" id="nav-Inventario">
+      <span class="nav-icon">📦</span><span class="nav-label">INVENTARIO</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('Uso')" id="nav-Uso">
+      <span class="nav-icon">✏️</span><span class="nav-label">REGISTRAR</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('Historial')" id="nav-Historial">
+      <span class="nav-icon">📋</span><span class="nav-label">HISTORIAL</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('Reportes')" id="nav-Reportes">
+      <span class="nav-icon">📊</span><span class="nav-label">REPORTES</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('Usuarios')" id="nav-Usuarios" style="display:none;">
+      <span class="nav-icon">👥</span><span class="nav-label">USUARIOS</span>
+    </button>
+  </nav>
+</div>
+
+<!-- MODAL ACCESORIO -->
+<div class="modal-overlay" id="itemModal">
+  <div class="modal">
+    <div class="modal-title" id="itemModalTitle">Agregar Accesorio</div>
+    <div class="form-group">
+      <label>Código</label>
+      <input type="text" id="iCode" placeholder="Ej: ACC-001">
+    </div>
+    <div class="form-group">
+      <label>Nombre / Descripción</label>
+      <input type="text" id="iName" placeholder="Ej: Cable UTP Cat6 (metro)">
+    </div>
+    <div class="form-group">
+      <label>Categoría (Opcional)</label>
+      <input type="text" id="iCat" placeholder="Ej: Cables, Herramientas...">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('itemModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveItem()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL USUARIO -->
+<div class="modal-overlay" id="userModal">
+  <div class="modal">
+    <div class="modal-title">Agregar Usuario</div>
+    <div class="form-group">
+      <label>Nombre de Usuario</label>
+      <input type="text" id="uName" placeholder="usuario123">
+    </div>
+    <div class="form-group">
+      <label>Contraseña</label>
+      <input type="password" id="uPass" placeholder="••••••••">
+    </div>
+    <div class="form-group">
+      <label>Rol</label>
+      <select id="uRole">
+        <option value="empleado">Empleado</option>
+        <option value="admin">Administrador</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('userModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveUser()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="loader-overlay" id="loaderOverlay"><div class="loader-spinner"></div>Cargando…</div>
+
+<script>
+// ── API CLIENT ───────────────────────────────────────────
+const API_BASE = (function(){
+  const q = new URLSearchParams(window.location.search).get('api');
+  if(q) return q.replace(/\/+$/,'');
+  const meta = document.querySelector('meta[name="api-base"]');
+  const v = meta && meta.content && meta.content.trim();
+  if(v && v !== '__API_BASE__') return v.replace(/\/+$/,'');
+  return window.location.origin;
+})();
+const TOKEN_KEY='inv_token';
+function getToken(){return localStorage.getItem(TOKEN_KEY);}
+function setToken(t){if(t) localStorage.setItem(TOKEN_KEY,t); else localStorage.removeItem(TOKEN_KEY);}
+async function api(path,opts={}){
+  const headers={'Content-Type':'application/json',...(opts.headers||{})};
+  const tok=getToken();
+  if(tok) headers['Authorization']='Bearer '+tok;
+  const res=await fetch(API_BASE+path,{...opts,headers});
+  if(res.status===204) return null;
+  let body=null;
+  try{body=await res.json();}catch{}
+  if(!res.ok){
+    const msg=(body&&body.detail)?body.detail:('Error '+res.status);
+    const err=new Error(msg);err.status=res.status;err.body=body;
+    throw err;
+  }
+  return body;
+}
+function showLoader(on){document.getElementById('loaderOverlay').classList.toggle('show',!!on);}
+
+// ── IN-MEMORY CACHE ──────────────────────────────────────
+const CACHE={inventory:[],usage:[],users:[]};
+async function loadInventory(){CACHE.inventory=await api('/api/inventory');return CACHE.inventory;}
+async function loadUsage(){CACHE.usage=await api('/api/usage');return CACHE.usage;}
+async function loadUsers(){CACHE.users=await api('/api/users');return CACHE.users;}
+function getInventory(){return CACHE.inventory||[];}
+function getUsage(){return CACHE.usage||[];}
+function getUsers(){return CACHE.users||[];}
+
+// ── AUTH ─────────────────────────────────────────────────
+let currentUser=null;
+function showLoginError(msg){
+  const el=document.getElementById('loginError');
+  el.textContent=msg||'⚠️ Usuario o contraseña incorrectos';
+  el.style.display='block';
+}
+async function doLogin(){
+  const u=document.getElementById('loginUser').value.trim();
+  const p=document.getElementById('loginPass').value;
+  if(!u||!p){showLoginError('⚠️ Ingresa usuario y contraseña');return;}
+  try{
+    showLoader(true);
+    const resp=await api('/api/auth/login',{method:'POST',body:JSON.stringify({username:u,password:p})});
+    setToken(resp.access_token);
+    currentUser=resp.user;
+    document.getElementById('loginError').style.display='none';
+    document.getElementById('loginUser').value='';
+    document.getElementById('loginPass').value='';
+    await startApp();
+  }catch(err){
+    showLoginError(err.status===401?'⚠️ Usuario o contraseña incorrectos':('⚠️ '+err.message));
+  }finally{
+    showLoader(false);
+  }
+}
+function doLogout(){
+  setToken(null);
+  currentUser=null;
+  CACHE.inventory=[];CACHE.usage=[];CACHE.users=[];
+  document.getElementById('appScreen').classList.remove('active');
+  document.getElementById('loginScreen').classList.add('active');
+  switchTab('Dashboard');
+}
+async function startApp(){
+  document.getElementById('loginScreen').classList.remove('active');
+  document.getElementById('appScreen').classList.add('active');
+  const isAdmin=currentUser.role==='admin';
+  document.getElementById('badgeRole').textContent=isAdmin?'👑 Admin':'👤 Empleado';
+  document.getElementById('badgeRole').className='badge-role'+(isAdmin?' admin':'');
+  document.getElementById('adminAddBtn').style.display=isAdmin?'block':'none';
+  document.getElementById('nav-Usuarios').style.display=isAdmin?'flex':'none';
+  document.getElementById('reportSemanaCard').style.display=isAdmin?'block':'none';
+  const today=todayStr();
+  document.getElementById('reportDate').value=today;
+  document.getElementById('weekStart').value=today;
+  usageQtys={};
+  await refreshAll();
+  renderDashboard();
+}
+async function refreshAll(){
+  try{
+    const tasks=[loadInventory(),loadUsage()];
+    if(currentUser&&currentUser.role==='admin') tasks.push(loadUsers());
+    await Promise.all(tasks);
+  }catch(err){
+    if(err.status===401){doLogout();showToast('Sesión expirada, ingresa de nuevo',true);}
+    else{showToast('⚠️ '+err.message,true);}
+  }
+}
+async function tryResumeSession(){
+  if(!getToken()) return false;
+  try{
+    const u=await api('/api/auth/me');
+    currentUser=u;
+    await startApp();
+    return true;
+  }catch{
+    setToken(null);
+    return false;
+  }
+}
+
+// ── NAVIGATION ───────────────────────────────────────────
+async function switchTab(tab){
+  document.querySelectorAll('.tab-view').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('tab'+tab).classList.add('active');
+  document.getElementById('nav-'+tab).classList.add('active');
+  // Refrescar datos relevantes desde el servidor para ver cambios de otros usuarios.
+  try{
+    if(tab==='Dashboard'){await Promise.all([loadInventory(),loadUsage()]);renderDashboard();}
+    else if(tab==='Inventario'){await loadInventory();renderInventory();}
+    else if(tab==='Uso'){await loadInventory();renderUsageList();}
+    else if(tab==='Historial'){await loadUsage();renderHistorial();}
+    else if(tab==='Usuarios'){await loadUsers();renderUsers();}
+  }catch(err){
+    if(err.status===401){doLogout();return;}
+    showToast('⚠️ '+err.message,true);
+  }
+}
+
+// ── DASHBOARD ────────────────────────────────────────────
+function renderDashboard(){
+  const inv=getInventory();
+  const usage=getUsage();
+  const today=todayStr();
+  const monday=getMondayOf(today);
+  const sunday=getSundayOf(monday);
+  const todayRegs=usage.filter(u=>u.date===today);
+  const usedToday=todayRegs.reduce((a,u)=>a+u.items.reduce((b,i)=>b+i.qtyUsed,0),0);
+  const weekUsage=usage.filter(u=>u.date>=monday&&u.date<=sunday);
+  const usedWeek=weekUsage.reduce((a,u)=>a+u.items.reduce((b,i)=>b+i.qtyUsed,0),0);
+  document.getElementById('statTotal').textContent=inv.length;
+  document.getElementById('statUsedToday').textContent=usedToday;
+  document.getElementById('statRegsToday').textContent=todayRegs.length;
+  document.getElementById('statUsedWeek').textContent=usedWeek;
+
+  const recentDiv=document.getElementById('recentUsage');
+  const last8=[...usage].reverse().slice(0,8);
+  if(last8.length===0){
+    recentDiv.innerHTML='<p style="color:var(--text2);font-size:13px;">No hay registros de uso aún.</p>';
+    return;
+  }
+  recentDiv.innerHTML=last8.map((u,idx)=>{
+    const total=u.items.reduce((a,i)=>a+i.qtyUsed,0);
+    const detailRows=u.items.map(i=>`
+      <div class="uso-detail-row">
+        <div><div class="uso-detail-name">${esc(i.name)}</div><div class="uso-detail-code">${esc(i.code)}</div></div>
+        <div class="uso-detail-qty">${i.qtyUsed}</div>
+      </div>`).join('');
+    return `<div class="uso-card">
+      <div class="uso-card-header" onclick="toggleUso(${idx})">
+        <div class="uso-card-info">
+          <div class="uso-card-title">📅 ${formatDate(u.date)} &nbsp;<span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">por ${esc(u.user)}</span></div>
+          <div class="uso-card-sub">${u.items.length} artículo(s) · <strong style="color:var(--accent)">${total}</strong> unidades registradas</div>
+        </div>
+        <span class="uso-chevron" id="chev-${idx}">▼</span>
+      </div>
+      <div class="uso-detail" id="detail-${idx}">
+        <div style="font-family:'Rajdhani',sans-serif;font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Detalle del registro</div>
+        ${detailRows}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleUso(idx){
+  const det=document.getElementById('detail-'+idx);
+  const chev=document.getElementById('chev-'+idx);
+  const isOpen=det.classList.contains('open');
+  det.classList.toggle('open',!isOpen);
+  chev.classList.toggle('open',!isOpen);
+}
+
+// ── INVENTARIO ───────────────────────────────────────────
+let editingItemId=null;
+function renderInventory(){
+  const q=(document.getElementById('searchInv').value||'').toLowerCase().trim();
+  let items=getInventory();
+  if(q) items=items.filter(i=>i.code.toLowerCase().includes(q)||i.name.toLowerCase().includes(q));
+  const list=document.getElementById('inventoryList');
+  if(items.length===0){list.innerHTML='<div class="empty-state"><span class="empty-icon">🔍</span><p>No se encontraron accesorios</p></div>';return;}
+  const isAdmin=currentUser.role==='admin';
+  list.innerHTML=items.map(i=>`
+    <div class="item-card">
+      <div class="item-info">
+        <div class="item-name">${esc(i.name)}</div>
+        <div class="item-code">${esc(i.code)}${i.cat?` <span class="chip">${esc(i.cat)}</span>`:''}</div>
+      </div>
+      ${isAdmin?`<div class="item-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openEditModal(${i.id})">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteItem(${i.id})">🗑️</button>
+      </div>`:''}
+    </div>`).join('');
+}
+function openAddModal(){
+  editingItemId=null;
+  document.getElementById('itemModalTitle').textContent='Agregar Accesorio';
+  ['iCode','iName','iCat'].forEach(id=>document.getElementById(id).value='');
+  openModal('itemModal');
+}
+function openEditModal(id){
+  const item=getInventory().find(i=>i.id===id);
+  if(!item) return;
+  editingItemId=id;
+  document.getElementById('itemModalTitle').textContent='Editar Accesorio';
+  document.getElementById('iCode').value=item.code;
+  document.getElementById('iName').value=item.name;
+  document.getElementById('iCat').value=item.cat||'';
+  openModal('itemModal');
+}
+async function saveItem(){
+  const code=document.getElementById('iCode').value.trim();
+  const name=document.getElementById('iName').value.trim();
+  const cat=document.getElementById('iCat').value.trim();
+  if(!code||!name){showToast('Código y nombre son obligatorios',true);return;}
+  try{
+    showLoader(true);
+    if(editingItemId){
+      await api('/api/inventory/'+editingItemId,{method:'PUT',body:JSON.stringify({code,name,cat})});
+      showToast('✅ Accesorio actualizado');
+    }else{
+      await api('/api/inventory',{method:'POST',body:JSON.stringify({code,name,cat})});
+      showToast('✅ Accesorio agregado');
+    }
+    await loadInventory();
+    closeModal('itemModal');
+    renderInventory();
+  }catch(err){
+    showToast('⚠️ '+err.message,true);
+  }finally{
+    showLoader(false);
+  }
+}
+async function deleteItem(id){
+  if(!confirm('¿Eliminar este accesorio?')) return;
+  try{
+    showLoader(true);
+    await api('/api/inventory/'+id,{method:'DELETE'});
+    await loadInventory();
+    renderInventory();
+    showToast('🗑️ Eliminado');
+  }catch(err){
+    showToast('⚠️ '+err.message,true);
+  }finally{
+    showLoader(false);
+  }
+}
+
+// ── REGISTRO DE USO ──────────────────────────────────────
+let usageQtys={};
+function renderUsageList(){
+  const q=(document.getElementById('searchUso').value||'').toLowerCase().trim();
+  let items=getInventory();
+  if(q) items=items.filter(i=>i.code.toLowerCase().includes(q)||i.name.toLowerCase().includes(q));
+  const list=document.getElementById('usageList');
+  if(items.length===0){list.innerHTML='<div class="empty-state"><span class="empty-icon">📦</span><p>No hay accesorios</p></div>';return;}
+  list.innerHTML=items.map(i=>`
+    <div class="usage-item">
+      <div class="item-info">
+        <div class="item-name">${esc(i.name)}</div>
+        <div class="item-code">${esc(i.code)}${i.cat?` · ${esc(i.cat)}`:''}</div>
+      </div>
+      <input type="number" class="qty-input" min="0" value="${usageQtys[i.id]||0}"
+        oninput="usageQtys[${i.id}]=Math.max(0,parseInt(this.value)||0);this.value=usageQtys[${i.id}]" placeholder="0">
+    </div>`).join('');
+}
+async function saveUsage(){
+  const items=[];
+  const inv=getInventory();
+  for(const id in usageQtys){
+    const qty=usageQtys[id];
+    if(qty<=0) continue;
+    const item=inv.find(i=>i.id===parseInt(id));
+    if(!item) continue;
+    items.push({id:item.id,code:item.code,name:item.name,qtyUsed:qty});
+  }
+  if(items.length===0){showToast('Ingresa al menos 1 accesorio usado',true);return;}
+  try{
+    showLoader(true);
+    await api('/api/usage',{method:'POST',body:JSON.stringify({items})});
+    await loadUsage();
+    usageQtys={};
+    showToast('✅ Uso registrado correctamente');
+    renderUsageList();
+    renderDashboard();
+  }catch(err){
+    showToast('⚠️ '+err.message,true);
+  }finally{
+    showLoader(false);
+  }
+}
+
+// ── HISTORIAL ────────────────────────────────────────────
+let currentHistTab='hoy';
+function switchHistTab(tab){
+  currentHistTab=tab;
+  document.getElementById('htHoy').classList.toggle('active',tab==='hoy');
+  document.getElementById('htSemana').classList.toggle('active',tab==='semana');
+  document.getElementById('hpHoy').classList.toggle('active',tab==='hoy');
+  document.getElementById('hpSemana').classList.toggle('active',tab==='semana');
+  renderHistorial();
+}
+
+function renderHistorial(){
+  if(currentHistTab==='hoy') renderHistHoy();
+  else renderHistSemana();
+}
+
+function renderHistHoy(){
+  const today=todayStr();
+  const usage=getUsage().filter(u=>u.date===today);
+  const div=document.getElementById('histHoyContent');
+  if(usage.length===0){
+    div.innerHTML=`<div class="empty-state"><span class="empty-icon">📋</span><p>No hay registros hoy<br><span style="font-size:12px;">${formatDate(today)}</span></p></div>`;
+    return;
+  }
+  const summary={};
+  usage.forEach(u=>u.items.forEach(i=>{
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0};
+    summary[i.code].total+=i.qtyUsed;
+  }));
+  const totalUnidades=Object.values(summary).reduce((a,s)=>a+s.total,0);
+  const totalRegs=usage.length;
+  const isAdmin=currentUser.role==='admin';
+
+  // Registros individuales (para admin con botón borrar)
+  const regsHtml=usage.map((u,idx)=>{
+    const total=u.items.reduce((a,i)=>a+i.qtyUsed,0);
+    const detalle=u.items.map(i=>`
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
+        <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div></div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:var(--accent);">${i.qtyUsed}</div>
+      </div>`).join('');
+    const hora=u.ts?new Date(u.ts).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'}):'--:--';
+    return `<div class="uso-card" style="margin-bottom:8px;">
+      <div class="uso-card-header" onclick="toggleUsoH('rh-${idx}')">
+        <div class="uso-card-info">
+          <div class="uso-card-title">🕐 ${hora} &nbsp;<span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">por ${esc(u.user)}</span></div>
+          <div class="uso-card-sub">${u.items.length} artículo(s) · <strong style="color:var(--accent)">${total}</strong> unidades</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${isAdmin?`<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteUsageRecord(${u.id})">🗑️</button>`:''}
+          <span class="uso-chevron" id="chev-rh-${idx}">▼</span>
+        </div>
+      </div>
+      <div class="uso-detail" id="detail-rh-${idx}">
+        <div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Detalle</div>
+        ${detalle}
+      </div>
+    </div>`;
+  }).join('');
+
+  div.innerHTML=`
+    <div style="background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:12px;display:flex;justify-content:space-between;">
+      <div><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--accent)">${totalUnidades}</div><div style="color:var(--text2);font-size:11px;">unidades totales</div></div>
+      <div style="text-align:center"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--blue)">${totalRegs}</div><div style="color:var(--text2);font-size:11px;">registros del día</div></div>
+      <div style="text-align:right"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--green)">${Object.keys(summary).length}</div><div style="color:var(--text2);font-size:11px;">tipos diferentes</div></div>
+    </div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📅 ${formatDate(today)} — Resumen total</div>
+    ${Object.values(summary).sort((a,b)=>b.total-a.total).map(s=>`
+      <div class="hist-item">
+        <div class="item-info">
+          <div class="item-name">${esc(s.name)}</div>
+          <div class="item-code">${esc(s.code)}</div>
+        </div>
+        <div class="hist-qty">${s.total}</div>
+      </div>`).join('')}
+    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:14px 0 8px;">
+      🕐 Registros individuales${isAdmin?' <span style="font-size:10px;color:var(--red);font-family:Noto Sans;text-transform:none;">(Admin: toca 🗑️ para eliminar)</span>':''}
+    </div>
+    ${regsHtml}`;
+}
+
+function toggleUsoH(id){
+  const det=document.getElementById('detail-'+id);
+  const chev=document.getElementById('chev-'+id);
+  if(!det||!chev) return;
+  const isOpen=det.classList.contains('open');
+  det.classList.toggle('open',!isOpen);
+  chev.classList.toggle('open',!isOpen);
+}
+
+async function deleteUsageRecord(id){
+  if(!confirm('¿Eliminar este registro? Se quitará del historial y de los reportes.')) return;
+  try{
+    showLoader(true);
+    await api('/api/usage/'+id,{method:'DELETE'});
+    await loadUsage();
+    showToast('🗑️ Registro eliminado');
+    renderHistorial();
+    renderDashboard();
+  }catch(err){
+    showToast('⚠️ '+err.message,true);
+  }finally{
+    showLoader(false);
+  }
+}
+
+function renderHistSemana(){
+  const div=document.getElementById('histSemanaContent');
+  if(currentUser.role!=='admin'){
+    div.innerHTML=`<div class="locked-msg"><span class="lock-icon">🔒</span>El reporte semanal está disponible<br>solo para el <strong>Administrador</strong>.</div>`;
+    return;
+  }
+  const today=todayStr();
+  const monday=getMondayOf(today);
+  const sunday=getSundayOf(monday);
+  const usage=getUsage().filter(u=>u.date>=monday&&u.date<=sunday);
+  if(usage.length===0){
+    div.innerHTML=`<div class="empty-state"><span class="empty-icon">📊</span><p>No hay registros esta semana</p></div>`;
+    return;
+  }
+  // Resumen total de la semana
+  const summary={};
+  usage.forEach(u=>u.items.forEach(i=>{
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0};
+    summary[i.code].total+=i.qtyUsed;
+  }));
+  const totalUnidades=Object.values(summary).reduce((a,s)=>a+s.total,0);
+
+  // Agrupar por día
+  const byDay={};
+  usage.forEach(u=>{
+    if(!byDay[u.date]) byDay[u.date]=[];
+    byDay[u.date].push(u);
+  });
+
+  let html=`
+    <div style="background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:12px;display:flex;justify-content:space-between;">
+      <div><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--accent)">${totalUnidades}</div><div style="color:var(--text2);font-size:11px;">total semana</div></div>
+      <div style="text-align:center"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--blue)">${usage.length}</div><div style="color:var(--text2);font-size:11px;">registros</div></div>
+      <div style="text-align:right"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--green)">${Object.keys(byDay).length}</div><div style="color:var(--text2);font-size:11px;">días activos</div></div>
+    </div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📊 Resumen semanal — ${formatDate(monday)} al ${formatDate(sunday)}</div>
+    ${Object.values(summary).sort((a,b)=>b.total-a.total).map(s=>`
+      <div class="hist-item">
+        <div class="item-info">
+          <div class="item-name">${esc(s.name)}</div>
+          <div class="item-code">${esc(s.code)}</div>
+        </div>
+        <div class="hist-qty">${s.total}</div>
+      </div>`).join('')}
+    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:16px 0 8px;">📅 Detalle por Día</div>`;
+
+  Object.keys(byDay).sort().forEach(date=>{
+    const regs=byDay[date];
+    const daySummary={};
+    regs.forEach(u=>u.items.forEach(i=>{
+      if(!daySummary[i.code]) daySummary[i.code]={code:i.code,name:i.name,total:0};
+      daySummary[i.code].total+=i.qtyUsed;
+    }));
+    const dayTotal=Object.values(daySummary).reduce((a,s)=>a+s.total,0);
+    html+=`<div class="hist-day-header"><span>📅 ${formatDate(date)}</span><strong>${dayTotal} uds.</strong></div>`;
+    html+=Object.values(daySummary).sort((a,b)=>b.total-a.total).map(s=>`
+      <div class="hist-item" style="margin-bottom:6px;">
+        <div class="item-info">
+          <div class="item-name">${esc(s.name)}</div>
+          <div class="item-code">${esc(s.code)}</div>
+        </div>
+        <div class="hist-qty" style="font-size:20px;">${s.total}</div>
+      </div>`).join('');
+    // Registros individuales del día con botón borrar
+    html+=`<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:8px 0 4px;padding-left:4px;">Registros individuales — toca 🗑️ para eliminar</div>`;
+    html+=regs.map((u,ri)=>{
+      const total=u.items.reduce((a,i)=>a+i.qtyUsed,0);
+      const hora=u.ts?new Date(u.ts).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'}):'--:--';
+      const key='sw-'+date.replace(/-/g,'')+'-'+ri;
+      const detalle=u.items.map(i=>`
+        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
+          <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div></div>
+          <div style="font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;color:var(--accent);">${i.qtyUsed}</div>
+        </div>`).join('');
+      return `<div class="uso-card" style="margin-bottom:6px;">
+        <div class="uso-card-header" onclick="toggleUsoH('${key}')">
+          <div class="uso-card-info">
+            <div class="uso-card-title">🕐 ${hora} · <span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">${esc(u.user)}</span></div>
+            <div class="uso-card-sub">${u.items.length} art. · <strong style="color:var(--accent)">${total}</strong> uds.</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteUsageRecord(${u.id})">🗑️</button>
+            <span class="uso-chevron" id="chev-${key}">▼</span>
+          </div>
+        </div>
+        <div class="uso-detail" id="detail-${key}">${detalle}</div>
+      </div>`;
+    }).join('');
+  });
+
+  div.innerHTML=html;
+}
+
+// ── REPORTES EXCEL ───────────────────────────────────────
+function getSummaryForDate(date){
+  const usage=getUsage().filter(u=>u.date===date);
+  const summary={};
+  usage.forEach(u=>u.items.forEach(i=>{
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0};
+    summary[i.code].total+=i.qtyUsed;
+  }));
+  return Object.values(summary);
+}
+
+function exportDaily(){
+  const date=document.getElementById('reportDate').value;
+  if(!date){showToast('Selecciona una fecha',true);return;}
+  const rows=getSummaryForDate(date);
+  if(rows.length===0){showToast('No hay uso registrado para esa fecha',true);return;}
+  const wb=XLSX.utils.book_new();
+  const wsData=[['Codigo','Descripcion','Cantidad Utilizado'],...rows.map(r=>[r.code,r.name,r.total])];
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols']=[{wch:14},{wch:38},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,ws,'Reporte Diario');
+  XLSX.writeFile(wb,`Reporte_Diario_${date}.xlsx`);
+  showToast('📥 Excel descargado');
+}
+
+function exportWeekly(){
+  const anyDay=document.getElementById('weekStart').value;
+  if(!anyDay){showToast('Selecciona una fecha',true);return;}
+  const monday=getMondayOf(anyDay);
+  const sunday=getSundayOf(monday);
+  const usage=getUsage().filter(u=>u.date>=monday&&u.date<=sunday);
+  if(usage.length===0){showToast('No hay uso en esa semana',true);return;}
+  const summary={};
+  usage.forEach(u=>u.items.forEach(i=>{
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0};
+    summary[i.code].total+=i.qtyUsed;
+  }));
+  const wb=XLSX.utils.book_new();
+  const ws1=XLSX.utils.aoa_to_sheet([['Codigo','Descripcion','Cantidad Utilizado'],...Object.values(summary).map(s=>[s.code,s.name,s.total])]);
+  ws1['!cols']=[{wch:14},{wch:38},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,ws1,'Resumen Semanal');
+  const detRows=[];
+  usage.forEach(u=>u.items.forEach(i=>detRows.push([u.date,i.code,i.name,i.qtyUsed,u.user])));
+  const ws2=XLSX.utils.aoa_to_sheet([['Fecha','Codigo','Descripcion','Cantidad Utilizado','Registrado Por'],...detRows]);
+  ws2['!cols']=[{wch:12},{wch:14},{wch:38},{wch:20},{wch:18}];
+  XLSX.utils.book_append_sheet(wb,ws2,'Detalle por Dia');
+  XLSX.writeFile(wb,`Reporte_Semanal_${monday}_al_${sunday}.xlsx`);
+  showToast('📥 Excel semanal descargado');
+}
+
+// ── USUARIOS ─────────────────────────────────────────────
+function renderUsers(){
+  document.getElementById('userList').innerHTML=getUsers().map(u=>`
+    <div class="user-card">
+      <div class="user-avatar ${u.role==='empleado'?'emp':''}">${u.username[0].toUpperCase()}</div>
+      <div style="flex:1">
+        <div style="font-weight:600">${esc(u.username)}</div>
+        <div style="color:var(--text2);font-size:12px;">${u.role==='admin'?'👑 Administrador':'👤 Empleado'}</div>
+      </div>
+      ${u.id!==currentUser.id?`<button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})">🗑️</button>`:'<span class="chip">Tú</span>'}
+    </div>`).join('');
+}
+function openAddUserModal(){
+  ['uName','uPass'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('uRole').value='empleado';
+  openModal('userModal');
+}
+async function saveUser(){
+  const username=document.getElementById('uName').value.trim();
+  const password=document.getElementById('uPass').value;
+  const role=document.getElementById('uRole').value;
+  if(!username||!password){showToast('Todos los campos son obligatorios',true);return;}
+  try{
+    showLoader(true);
+    await api('/api/users',{method:'POST',body:JSON.stringify({username,password,role})});
+    await loadUsers();
+    closeModal('userModal');
+    renderUsers();
+    showToast('✅ Usuario creado');
+  }catch(err){
+    showToast('⚠️ '+err.message,true);
+  }finally{
+    showLoader(false);
+  }
+}
+async function deleteUser(id){
+  if(!confirm('¿Eliminar este usuario?')) return;
+  try{
+    showLoader(true);
+    await api('/api/users/'+id,{method:'DELETE'});
+    await loadUsers();
+    renderUsers();
+    showToast('🗑️ Usuario eliminado');
+  }catch(err){
+    showToast('⚠️ '+err.message,true);
+  }finally{
+    showLoader(false);
+  }
+}
+
+// ── UTILS ─────────────────────────────────────────────────
+function todayStr(){return new Date().toISOString().split('T')[0];}
+function formatDate(str){const[y,m,d]=str.split('-');return`${d}/${m}/${y}`;}
+function getMondayOf(dateStr){
+  const d=new Date(dateStr+'T12:00:00');
+  const day=d.getDay();
+  const diff=day===0?-6:1-day;
+  d.setDate(d.getDate()+diff);
+  return d.toISOString().split('T')[0];
+}
+function getSundayOf(mondayStr){
+  const d=new Date(mondayStr+'T12:00:00');
+  d.setDate(d.getDate()+6);
+  return d.toISOString().split('T')[0];
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.modal-overlay').forEach(m=>{
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});
+});
+let toastTimer;
+function showToast(msg,err=false){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='toast'+(err?' error':'')+' show';
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),2800);
+}
+document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+document.getElementById('loginUser').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass').focus();});
+tryResumeSession();
+</script>
+</body>
+</html>
