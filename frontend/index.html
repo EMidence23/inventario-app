@@ -70,6 +70,10 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
 
 /* ITEM CARD */
 .item-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:9px;display:flex;align-items:center;gap:10px;}
+.stock-badge{display:inline-block;margin-top:5px;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;font-family:'Rajdhani',sans-serif;letter-spacing:.3px;}
+.stock-badge.stock-ok{background:rgba(46,160,67,.15);color:#3fb950;border:1px solid rgba(46,160,67,.35);}
+.stock-badge.stock-low{background:rgba(210,153,34,.15);color:#f0b429;border:1px solid rgba(210,153,34,.35);}
+.stock-badge.stock-zero{background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.4);}
 .item-info{flex:1;min-width:0;}
 .item-name{font-weight:600;font-size:14px;word-break:break-word;overflow-wrap:anywhere;line-height:1.3;}
 .item-code{color:var(--text2);font-size:12px;margin-top:2px;}
@@ -345,6 +349,10 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
       <label>Categoría (Opcional)</label>
       <input type="text" id="iCat" placeholder="Ej: Cables, Herramientas...">
     </div>
+    <div class="form-group">
+      <label>Cantidad en Stock</label>
+      <input type="number" id="iStock" min="0" step="1" placeholder="Ej: 100">
+    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal('itemModal')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveItem()">Guardar</button>
@@ -602,22 +610,28 @@ function renderInventory(){
   const list=document.getElementById('inventoryList');
   if(items.length===0){list.innerHTML='<div class="empty-state"><span class="empty-icon">🔍</span><p>No se encontraron accesorios</p></div>';return;}
   const isAdmin=currentUser.role==='admin';
-  list.innerHTML=items.map(i=>`
+  list.innerHTML=items.map(i=>{
+    const s=Number(i.stock||0);
+    const cls=s===0?'stock-zero':(s<=20?'stock-low':'stock-ok');
+    return `
     <div class="item-card">
       <div class="item-info">
         <div class="item-name">${esc(i.name)}</div>
         <div class="item-code">${esc(i.code)}${i.cat?` <span class="chip">${esc(i.cat)}</span>`:''}</div>
+        <div class="stock-badge ${cls}">📦 Stock: <strong>${s}</strong></div>
       </div>
       ${isAdmin?`<div class="item-actions">
         <button class="btn btn-secondary btn-sm" onclick="openEditModal(${i.id})">✏️</button>
         <button class="btn btn-danger btn-sm" onclick="deleteItem(${i.id})">🗑️</button>
       </div>`:''}
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 function openAddModal(){
   editingItemId=null;
   document.getElementById('itemModalTitle').textContent='Agregar Accesorio';
   ['iCode','iName','iCat'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('iStock').value='100';
   openModal('itemModal');
 }
 function openEditModal(id){
@@ -628,20 +642,25 @@ function openEditModal(id){
   document.getElementById('iCode').value=item.code;
   document.getElementById('iName').value=item.name;
   document.getElementById('iCat').value=item.cat||'';
+  document.getElementById('iStock').value=Number(item.stock||0);
   openModal('itemModal');
 }
 async function saveItem(){
   const code=document.getElementById('iCode').value.trim();
   const name=document.getElementById('iName').value.trim();
   const cat=document.getElementById('iCat').value.trim();
+  const stockRaw=document.getElementById('iStock').value.trim();
+  const stock=stockRaw===''?null:Math.max(0,parseInt(stockRaw,10)||0);
   if(!code||!name){showToast('Código y nombre son obligatorios',true);return;}
+  const payload={code,name,cat};
+  if(stock!==null) payload.stock=stock;
   try{
     showLoader(true);
     if(editingItemId){
-      await api('/api/inventory/'+editingItemId,{method:'PUT',body:JSON.stringify({code,name,cat})});
+      await api('/api/inventory/'+editingItemId,{method:'PUT',body:JSON.stringify(payload)});
       showToast('✅ Accesorio actualizado');
     }else{
-      await api('/api/inventory',{method:'POST',body:JSON.stringify({code,name,cat})});
+      await api('/api/inventory',{method:'POST',body:JSON.stringify(payload)});
       showToast('✅ Accesorio agregado');
     }
     await loadInventory();
@@ -684,15 +703,20 @@ function renderUsageList(){
   if(q) items=items.filter(i=>i.code.toLowerCase().includes(q)||i.name.toLowerCase().includes(q));
   const list=document.getElementById('usageList');
   if(items.length===0){list.innerHTML='<div class="empty-state"><span class="empty-icon">📦</span><p>No hay accesorios</p></div>';return;}
-  list.innerHTML=items.map(i=>`
+  list.innerHTML=items.map(i=>{
+    const s=Number(i.stock||0);
+    const cls=s===0?'stock-zero':(s<=20?'stock-low':'stock-ok');
+    return `
     <div class="usage-item">
       <div class="item-info">
         <div class="item-name">${esc(i.name)}</div>
         <div class="item-code">${esc(i.code)}${i.cat?` · ${esc(i.cat)}`:''}</div>
+        <div class="stock-badge ${cls}">📦 Stock: <strong>${s}</strong></div>
       </div>
       <input type="number" class="qty-input" min="0" value="${usageQtys[i.id]||0}"
         oninput="usageQtys[${i.id}]=Math.max(0,parseInt(this.value)||0);this.value=usageQtys[${i.id}]" placeholder="0">
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 async function saveUsage(){
   const items=[];
@@ -708,7 +732,8 @@ async function saveUsage(){
   try{
     showLoader(true);
     await api('/api/usage',{method:'POST',body:JSON.stringify({items,date:todayStr()})});
-    await loadUsage();
+    // Recargar inventario para reflejar el stock descontado en el backend.
+    await Promise.all([loadUsage(),loadInventory()]);
     usageQtys={};
     showToast('✅ Uso registrado correctamente');
     renderUsageList();
@@ -818,7 +843,9 @@ async function deleteUsageRecord(id){
   try{
     showLoader(true);
     await api('/api/usage/'+id,{method:'DELETE'});
-    await loadUsage();
+    // El backend devuelve las unidades al stock; recargamos inventario para
+    // que la UI refleje el nuevo valor.
+    await Promise.all([loadUsage(),loadInventory()]);
     showToast('🗑️ Registro eliminado');
     renderHistorial();
     renderDashboard();

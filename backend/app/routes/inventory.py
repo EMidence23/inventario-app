@@ -20,7 +20,10 @@ def list_items(
     db: Annotated[Session, Depends(get_db)],
 ) -> list[InventoryItemOut]:
     rows = db.query(InventoryItem).order_by(InventoryItem.id).all()
-    return [InventoryItemOut(id=r.id, code=r.code, name=r.name, cat=r.cat or "") for r in rows]
+    return [
+        InventoryItemOut(id=r.id, code=r.code, name=r.name, cat=r.cat or "", stock=r.stock or 0)
+        for r in rows
+    ]
 
 
 @router.post("", response_model=InventoryItemOut, status_code=status.HTTP_201_CREATED)
@@ -34,11 +37,18 @@ def create_item(
             status_code=status.HTTP_409_CONFLICT,
             detail="Ya existe un accesorio con ese codigo",
         )
-    item = InventoryItem(code=payload.code, name=payload.name, cat=payload.cat or "")
+    item = InventoryItem(
+        code=payload.code,
+        name=payload.name,
+        cat=payload.cat or "",
+        stock=payload.stock if payload.stock is not None else 0,
+    )
     db.add(item)
     db.commit()
     db.refresh(item)
-    return InventoryItemOut(id=item.id, code=item.code, name=item.name, cat=item.cat or "")
+    return InventoryItemOut(
+        id=item.id, code=item.code, name=item.name, cat=item.cat or "", stock=item.stock or 0
+    )
 
 
 @router.put("/{item_id}", response_model=InventoryItemOut)
@@ -64,9 +74,13 @@ def update_item(
     item.code = payload.code
     item.name = payload.name
     item.cat = payload.cat or ""
+    if payload.stock is not None:
+        item.stock = payload.stock
     db.commit()
     db.refresh(item)
-    return InventoryItemOut(id=item.id, code=item.code, name=item.name, cat=item.cat or "")
+    return InventoryItemOut(
+        id=item.id, code=item.code, name=item.name, cat=item.cat or "", stock=item.stock or 0
+    )
 
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)

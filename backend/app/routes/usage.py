@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_current_user, require_admin
 from ..db import get_db
-from ..models import UsageRecord, User
+from ..models import InventoryItem, UsageRecord, User
 from ..schemas import (
     UsageItemOut,
     UsageRecordIn,
@@ -77,6 +77,14 @@ def create_usage(
         items_json=json.dumps([it.model_dump() for it in filtered]),
     )
     db.add(record)
+    # Descontar el uso del stock de cada accesorio. Si el producto no existe
+    # (p.ej. fue borrado) solo ignoramos. El stock puede quedar en 0 pero no
+    # se vuelve negativo.
+    for it in filtered:
+        inv = db.get(InventoryItem, it.id)
+        if inv is None:
+            continue
+        inv.stock = max(0, (inv.stock or 0) - it.qtyUsed)
     db.commit()
     db.refresh(record)
     return _to_out(record)
@@ -91,6 +99,23 @@ def delete_usage(
     row = db.get(UsageRecord, record_id)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro no encontrado")
+    # Devolver el uso al stock de cada accesorio antes de borrar el registro.
+    try:
+        items_data = json.loads(row.items_json or "[]")
+    except (TypeError, ValueError):
+        items_data = []
+    for it in items_data:
+        try:
+            inv_id = int(it.get("id", 0))
+            qty = int(it.get("qtyUsed", 0))
+        except (TypeError, ValueError):
+            continue
+        if not inv_id or qty <= 0:
+            continue
+        inv = db.get(InventoryItem, inv_id)
+        if inv is None:
+            continue
+        inv.stock = (inv.stock or 0) + qty
     db.delete(row)
     db.commit()
     return None

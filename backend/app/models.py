@@ -26,6 +26,7 @@ class InventoryItem(Base):
     code: Mapped[str] = mapped_column(String(40), unique=True, nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     cat: Mapped[str] = mapped_column(String(80), default="")
+    stock: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

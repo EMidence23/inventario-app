@@ -69,6 +69,12 @@ def _migrate_add_missing_columns() -> None:
         with engine.begin() as conn:
             if "cat" not in existing:
                 conn.execute(text("ALTER TABLE inventory_items ADD COLUMN cat VARCHAR(80) DEFAULT ''"))
+            if "stock" not in existing:
+                # Nuevo campo de stock: lo agregamos y sembramos 100 en los
+                # productos existentes para que el inventario arranque con un
+                # valor razonable (el admin puede ajustarlo despues).
+                conn.execute(text("ALTER TABLE inventory_items ADD COLUMN stock INTEGER NOT NULL DEFAULT 0"))
+                conn.execute(text("UPDATE inventory_items SET stock = 100 WHERE stock = 0"))
 
 
 def _seed_default_users() -> None:
@@ -94,7 +100,7 @@ def _seed_default_users() -> None:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Inventario API", version="1.0.3")
+    app = FastAPI(title="Inventario API", version="1.1.0")
 
     app.add_middleware(
         CORSMiddleware,

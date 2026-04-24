@@ -47,6 +47,7 @@ class InventoryItemIn(BaseModel):
     code: str = Field(min_length=1, max_length=40)
     name: str = Field(min_length=1, max_length=200)
     cat: str = ""
+    stock: int | None = Field(default=None, ge=0)
 
 
 class InventoryItemOut(BaseModel):
@@ -54,6 +55,7 @@ class InventoryItemOut(BaseModel):
     code: str
     name: str
     cat: str
+    stock: int
 
 
 class UsageItemIn(BaseModel):
