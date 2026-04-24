@@ -1,24 +1,18 @@
-# Python
 __pycache__/
 *.py[cod]
-*.egg-info/
 .venv/
 venv/
-*.sqlite
-*.db
-
-# Env
 .env
-.env.local
-
-# Editor / OS
+.env.*
+!.env.example
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
 .DS_Store
-.vscode/
-.idea/
-
-# Build
+node_modules/
 dist/
 build/
-
-# Fly / deploy artifacts generated outside the repo
-.fly/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/

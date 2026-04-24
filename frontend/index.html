@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Control de Inventario</title>
+<title>Control de Inventario VIMECO</title>
+<link rel="icon" type="image/jpeg" href="vimeco-logo.jpg">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Noto+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -153,9 +154,9 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
 <!-- LOGIN -->
 <div id="loginScreen" class="screen active">
   <div class="login-logo">
-    <span class="icon">📦</span>
-    <h1>INVENTARIO</h1>
-    <p>Sistema de Control de Accesorios</p>
+    <img src="vimeco-logo.jpg" alt="VIMECO" style="width:120px;height:120px;object-fit:contain;border-radius:16px;background:#fff;padding:6px;display:block;margin:0 auto 10px;">
+    <h1>VIMECO</h1>
+    <p>Control de Inventario &middot; Ventanas y Puertas</p>
   </div>
   <div class="login-card">
     <div class="form-group">
@@ -174,7 +175,10 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
 <!-- APP -->
 <div id="appScreen" class="screen">
   <div class="app-header">
-    <h2>📦 INVENTARIO</h2>
+    <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+      <img src="vimeco-logo.jpg" alt="VIMECO" style="width:28px;height:28px;object-fit:contain;border-radius:6px;background:#fff;padding:2px;flex-shrink:0;">
+      <h2 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Control de Inventario VIMECO</h2>
+    </div>
     <div class="header-right">
       <span class="badge-role" id="badgeRole">Empleado</span>
       <button class="btn-logout" onclick="doLogout()">⏏️</button>
@@ -286,7 +290,7 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
     <button class="nav-item" onclick="switchTab('Historial')" id="nav-Historial">
       <span class="nav-icon">📋</span><span class="nav-label">HISTORIAL</span>
     </button>
-    <button class="nav-item" onclick="switchTab('Reportes')" id="nav-Reportes">
+    <button class="nav-item" onclick="switchTab('Reportes')" id="nav-Reportes" style="display:none;">
       <span class="nav-icon">📊</span><span class="nav-label">REPORTES</span>
     </button>
     <button class="nav-item" onclick="switchTab('Usuarios')" id="nav-Usuarios" style="display:none;">
@@ -321,14 +325,15 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
 <!-- MODAL USUARIO -->
 <div class="modal-overlay" id="userModal">
   <div class="modal">
-    <div class="modal-title">Agregar Usuario</div>
+    <div class="modal-title" id="userModalTitle">Agregar Usuario</div>
     <div class="form-group">
       <label>Nombre de Usuario</label>
       <input type="text" id="uName" placeholder="usuario123">
     </div>
     <div class="form-group">
-      <label>Contraseña</label>
+      <label id="uPassLabel">Contraseña</label>
       <input type="password" id="uPass" placeholder="••••••••">
+      <div id="uPassHint" style="color:var(--text2);font-size:11px;margin-top:4px;display:none;">Déjalo vacío para mantener la contraseña actual.</div>
     </div>
     <div class="form-group">
       <label>Rol</label>
@@ -429,6 +434,7 @@ async function startApp(){
   document.getElementById('badgeRole').className='badge-role'+(isAdmin?' admin':'');
   document.getElementById('adminAddBtn').style.display=isAdmin?'block':'none';
   document.getElementById('nav-Usuarios').style.display=isAdmin?'flex':'none';
+  document.getElementById('nav-Reportes').style.display=isAdmin?'flex':'none';
   document.getElementById('reportSemanaCard').style.display=isAdmin?'block':'none';
   const today=todayStr();
   document.getElementById('reportDate').value=today;
@@ -503,6 +509,7 @@ function renderDashboard(){
   }
   recentDiv.innerHTML=last8.map((u,idx)=>{
     const total=u.items.reduce((a,i)=>a+i.qtyUsed,0);
+    const hora=formatTime(u.ts);
     const detailRows=u.items.map(i=>`
       <div class="uso-detail-row">
         <div><div class="uso-detail-name">${esc(i.name)}</div><div class="uso-detail-code">${esc(i.code)}</div></div>
@@ -511,7 +518,7 @@ function renderDashboard(){
     return `<div class="uso-card">
       <div class="uso-card-header" onclick="toggleUso(${idx})">
         <div class="uso-card-info">
-          <div class="uso-card-title">📅 ${formatDate(u.date)} &nbsp;<span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">por ${esc(u.user)}</span></div>
+          <div class="uso-card-title">📅 ${formatDate(u.date)} · 🕐 ${hora} &nbsp;<span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">por ${esc(u.user)}</span></div>
           <div class="uso-card-sub">${u.items.length} artículo(s) · <strong style="color:var(--accent)">${total}</strong> unidades registradas</div>
         </div>
         <span class="uso-chevron" id="chev-${idx}">▼</span>
@@ -901,34 +908,69 @@ function exportWeekly(){
 }
 
 // ── USUARIOS ─────────────────────────────────────────────
+let editingUserId=null;
 function renderUsers(){
-  document.getElementById('userList').innerHTML=getUsers().map(u=>`
+  document.getElementById('userList').innerHTML=getUsers().map(u=>{
+    const isMe=u.id===currentUser.id;
+    return `
     <div class="user-card">
       <div class="user-avatar ${u.role==='empleado'?'emp':''}">${u.username[0].toUpperCase()}</div>
       <div style="flex:1">
-        <div style="font-weight:600">${esc(u.username)}</div>
+        <div style="font-weight:600">${esc(u.username)}${isMe?' <span class="chip">Tú</span>':''}</div>
         <div style="color:var(--text2);font-size:12px;">${u.role==='admin'?'👑 Administrador':'👤 Empleado'}</div>
       </div>
-      ${u.id!==currentUser.id?`<button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})">🗑️</button>`:'<span class="chip">Tú</span>'}
-    </div>`).join('');
+      <div class="item-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openEditUserModal(${u.id})">✏️</button>
+        ${!isMe?`<button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})">🗑️</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
 }
 function openAddUserModal(){
+  editingUserId=null;
+  document.getElementById('userModalTitle').textContent='Agregar Usuario';
+  document.getElementById('uPassLabel').textContent='Contraseña';
+  document.getElementById('uPassHint').style.display='none';
   ['uName','uPass'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('uRole').value='empleado';
+  openModal('userModal');
+}
+function openEditUserModal(id){
+  const u=getUsers().find(x=>x.id===id);
+  if(!u) return;
+  editingUserId=id;
+  document.getElementById('userModalTitle').textContent=u.id===currentUser.id?'Editar mi cuenta':'Editar Usuario';
+  document.getElementById('uPassLabel').textContent='Nueva Contraseña (opcional)';
+  document.getElementById('uPassHint').style.display='block';
+  document.getElementById('uName').value=u.username;
+  document.getElementById('uPass').value='';
+  document.getElementById('uRole').value=u.role;
   openModal('userModal');
 }
 async function saveUser(){
   const username=document.getElementById('uName').value.trim();
   const password=document.getElementById('uPass').value;
   const role=document.getElementById('uRole').value;
-  if(!username||!password){showToast('Todos los campos son obligatorios',true);return;}
+  if(!username){showToast('El nombre de usuario es obligatorio',true);return;}
   try{
     showLoader(true);
-    await api('/api/users',{method:'POST',body:JSON.stringify({username,password,role})});
+    if(editingUserId){
+      const body={username,role};
+      if(password) body.password=password;
+      await api('/api/users/'+editingUserId,{method:'PUT',body:JSON.stringify(body)});
+      if(editingUserId===currentUser.id){
+        currentUser.username=username;
+        currentUser.role=role;
+      }
+      showToast('✅ Usuario actualizado');
+    }else{
+      if(!password){showToast('La contraseña es obligatoria',true);showLoader(false);return;}
+      await api('/api/users',{method:'POST',body:JSON.stringify({username,password,role})});
+      showToast('✅ Usuario creado');
+    }
     await loadUsers();
     closeModal('userModal');
     renderUsers();
-    showToast('✅ Usuario creado');
   }catch(err){
     showToast('⚠️ '+err.message,true);
   }finally{
@@ -953,6 +995,7 @@ async function deleteUser(id){
 // ── UTILS ─────────────────────────────────────────────────
 function todayStr(){return new Date().toISOString().split('T')[0];}
 function formatDate(str){const[y,m,d]=str.split('-');return`${d}/${m}/${y}`;}
+function formatTime(ts){if(!ts) return '--:--';try{return new Date(ts).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});}catch{return '--:--';}}
 function getMondayOf(dateStr){
   const d=new Date(dateStr+'T12:00:00');
   const day=d.getDay();
