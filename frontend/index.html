@@ -424,7 +424,13 @@ function doLogout(){
   CACHE.inventory=[];CACHE.usage=[];CACHE.users=[];
   document.getElementById('appScreen').classList.remove('active');
   document.getElementById('loginScreen').classList.add('active');
-  switchTab('Dashboard');
+  // Reset tab DOM without triggering data fetches (no currentUser = no auth).
+  document.querySelectorAll('.tab-view').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const dashTab=document.getElementById('tabDashboard');
+  const dashNav=document.getElementById('nav-Dashboard');
+  if(dashTab) dashTab.classList.add('active');
+  if(dashNav) dashNav.classList.add('active');
 }
 async function startApp(){
   document.getElementById('loginScreen').classList.remove('active');
@@ -472,6 +478,8 @@ async function switchTab(tab){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('tab'+tab).classList.add('active');
   document.getElementById('nav-'+tab).classList.add('active');
+  // Si no hay sesion, no intentes cargar datos (evita loop de 401 tras logout).
+  if(!currentUser) return;
   // Refrescar datos relevantes desde el servidor para ver cambios de otros usuarios.
   try{
     if(tab==='Dashboard'){await Promise.all([loadInventory(),loadUsage()]);renderDashboard();}
@@ -993,7 +1001,7 @@ async function deleteUser(id){
 }
 
 // ── UTILS ─────────────────────────────────────────────────
-function todayStr(){return new Date().toISOString().split('T')[0];}
+function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function formatDate(str){const[y,m,d]=str.split('-');return`${d}/${m}/${y}`;}
 function formatTime(ts){if(!ts) return '--:--';try{return new Date(ts).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});}catch{return '--:--';}}
 function getMondayOf(dateStr){
