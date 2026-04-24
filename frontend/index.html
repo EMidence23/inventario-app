@@ -349,13 +349,14 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
 
 <script>
 // ── API CLIENT ───────────────────────────────────────────
+const DEFAULT_API_BASE = 'https://inventario-backend-nkpdbvdn.fly.dev';
 const API_BASE = (function(){
   const q = new URLSearchParams(window.location.search).get('api');
   if(q) return q.replace(/\/+$/,'');
   const meta = document.querySelector('meta[name="api-base"]');
   const v = meta && meta.content && meta.content.trim();
   if(v && v !== '__API_BASE__') return v.replace(/\/+$/,'');
-  return window.location.origin;
+  return DEFAULT_API_BASE;
 })();
 const TOKEN_KEY='inv_token';
 function getToken(){return localStorage.getItem(TOKEN_KEY);}
