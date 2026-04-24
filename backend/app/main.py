@@ -4,6 +4,8 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from sqlalchemy import inspect, text
+
 from .auth import hash_password
 from .config import settings
 from .db import Base, SessionLocal, engine
@@ -12,6 +14,58 @@ from .routes import auth as auth_routes
 from .routes import inventory as inventory_routes
 from .routes import usage as usage_routes
 from .routes import users as users_routes
+
+
+_EXPECTED_USAGE_COLUMNS = {
+    "id",
+    "user_id",
+    "username_snapshot",
+    "date",
+    "ts",
+    "items_json",
+}
+
+
+def _migrate_add_missing_columns() -> None:
+    """Migracion minima idempotente: repara el schema cuando SQLAlchemy
+    create_all no basta (no ALTERa tablas existentes).
+
+    - Si usage_records esta corrupto/legacy, lo borra (no habia datos de
+      produccion en ese momento) y deja que create_all lo rehaga.
+    - Agrega columnas opcionales como cat en inventory_items.
+    """
+    inspector = inspect(engine)
+    # Rebuilds one-shot: si la tabla usage_records viene de una version
+    # anterior (faltan columnas o las filas son ilegibles), la borramos
+    # para que Base.metadata.create_all la rehaga en estado limpio.
+    if "usage_records" in inspector.get_table_names():
+        rebuild = False
+        existing = {c["name"] for c in inspector.get_columns("usage_records")}
+        if not _EXPECTED_USAGE_COLUMNS.issubset(existing):
+            rebuild = True
+        else:
+            try:
+                with engine.connect() as conn:
+                    rows = conn.execute(
+                        text(
+                            "SELECT COUNT(*) FROM usage_records "
+                            "WHERE ts IS NULL OR typeof(ts) != 'text' "
+                            "OR date IS NULL OR items_json IS NULL"
+                        )
+                    ).scalar_one()
+                if rows:
+                    rebuild = True
+            except Exception:
+                rebuild = True
+        if rebuild:
+            with engine.begin() as conn:
+                conn.execute(text("DROP TABLE IF EXISTS usage_records"))
+            Base.metadata.create_all(bind=engine)
+    if "inventory_items" in inspector.get_table_names():
+        existing = {c["name"] for c in inspector.get_columns("inventory_items")}
+        with engine.begin() as conn:
+            if "cat" not in existing:
+                conn.execute(text("ALTER TABLE inventory_items ADD COLUMN cat VARCHAR(80) DEFAULT ''"))
 
 
 def _seed_default_users() -> None:
@@ -37,7 +91,7 @@ def _seed_default_users() -> None:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Inventario API", version="1.0.0")
+    app = FastAPI(title="Inventario API", version="1.0.3")
 
     app.add_middleware(
         CORSMiddleware,
@@ -48,6 +102,7 @@ def create_app() -> FastAPI:
     )
 
     Base.metadata.create_all(bind=engine)
+    _migrate_add_missing_columns()
     _seed_default_users()
 
     app.include_router(auth_routes.router)

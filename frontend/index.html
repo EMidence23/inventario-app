@@ -217,6 +217,10 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
         <span class="si">🔍</span>
         <input type="search" id="searchInv" placeholder="Buscar por código o nombre..." oninput="renderInventory()">
       </div>
+      <select id="filterCat" class="date-picker" onchange="renderInventory()" style="margin-bottom:10px;">
+        <option value="">Todas las categorías</option>
+      </select>
+      <div id="invCount" style="color:var(--text2);font-size:12px;margin-bottom:10px;"></div>
       <div id="adminAddBtn" style="display:none;margin-bottom:11px;">
         <button class="btn btn-primary" onclick="openAddModal()">＋ Agregar Accesorio</button>
       </div>
@@ -550,9 +554,20 @@ function toggleUso(idx){
 // ── INVENTARIO ───────────────────────────────────────────
 let editingItemId=null;
 function renderInventory(){
+  const all=getInventory();
+  const total=all.length;
   const q=(document.getElementById('searchInv').value||'').toLowerCase().trim();
-  let items=getInventory();
+  const catSel=document.getElementById('filterCat');
+  // Reconstruir opciones del dropdown preservando seleccion
+  const prev=catSel.value;
+  const cats=[...new Set(all.map(i=>(i.cat||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  catSel.innerHTML='<option value="">Todas las categorías</option>'+cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  catSel.value=cats.includes(prev)?prev:'';
+  const catF=catSel.value;
+  let items=all;
+  if(catF) items=items.filter(i=>(i.cat||'').trim()===catF);
   if(q) items=items.filter(i=>i.code.toLowerCase().includes(q)||i.name.toLowerCase().includes(q));
+  document.getElementById('invCount').textContent=`Mostrando ${items.length} de ${total}`+(catF?` · ${catF}`:'');
   const list=document.getElementById('inventoryList');
   if(items.length===0){list.innerHTML='<div class="empty-state"><span class="empty-icon">🔍</span><p>No se encontraron accesorios</p></div>';return;}
   const isAdmin=currentUser.role==='admin';
