@@ -1230,9 +1230,14 @@ async function saveUser(){
       await api('/api/users',{method:'POST',body:JSON.stringify({username,password,role})});
       showToast('✅ Usuario creado');
     }
-    await loadUsers();
     closeModal('userModal');
-    renderUsers();
+    // GET /api/users es solo-admin. Si el admin se degrado a si mismo, la
+    // llamada falla con 403 y tumba el mensaje de exito; por eso refrescamos
+    // la lista solo si seguimos siendo admin.
+    if(currentUser&&currentUser.role==='admin'){
+      await loadUsers();
+      renderUsers();
+    }
   }catch(err){
     showToast('⚠️ '+err.message,true);
   }finally{
