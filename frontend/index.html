@@ -451,16 +451,19 @@ function doLogout(){
   if(dashTab) dashTab.classList.add('active');
   if(dashNav) dashNav.classList.add('active');
 }
-async function startApp(){
-  document.getElementById('loginScreen').classList.remove('active');
-  document.getElementById('appScreen').classList.add('active');
-  const isAdmin=currentUser.role==='admin';
+function applyRoleVisibility(){
+  const isAdmin=currentUser&&currentUser.role==='admin';
   document.getElementById('badgeRole').textContent=isAdmin?'👑 Admin':'👤 Empleado';
   document.getElementById('badgeRole').className='badge-role'+(isAdmin?' admin':'');
   document.getElementById('adminAddBtn').style.display=isAdmin?'block':'none';
   document.getElementById('nav-Usuarios').style.display=isAdmin?'flex':'none';
   document.getElementById('nav-Reportes').style.display=isAdmin?'flex':'none';
   document.getElementById('reportSemanaCard').style.display=isAdmin?'block':'none';
+}
+async function startApp(){
+  document.getElementById('loginScreen').classList.remove('active');
+  document.getElementById('appScreen').classList.add('active');
+  applyRoleVisibility();
   const today=todayStr();
   document.getElementById('reportDate').value=today;
   document.getElementById('weekStart').value=today;
@@ -1070,8 +1073,18 @@ async function saveUser(){
       if(password) body.password=password;
       await api('/api/users/'+editingUserId,{method:'PUT',body:JSON.stringify(body)});
       if(editingUserId===currentUser.id){
+        const wasAdmin=currentUser.role==='admin';
         currentUser.username=username;
         currentUser.role=role;
+        applyRoleVisibility();
+        // Si el admin se bajo a empleado y esta en una pestana solo-admin,
+        // regresarlo al Dashboard para evitar ver UI sin permisos.
+        if(wasAdmin&&role!=='admin'){
+          const activeTab=document.querySelector('.tab-view.active');
+          if(activeTab&&(activeTab.id==='tabUsuarios'||activeTab.id==='tabReportes')){
+            await switchTab('Dashboard');
+          }
+        }
       }
       showToast('✅ Usuario actualizado');
     }else{
