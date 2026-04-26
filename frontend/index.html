@@ -228,8 +228,9 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
         <option value="">Todas las categorías</option>
       </select>
       <div id="invCount" style="color:var(--text2);font-size:12px;margin-bottom:10px;"></div>
-      <div id="adminAddBtn" style="display:none;margin-bottom:11px;">
+      <div id="adminAddBtn" style="display:none;margin-bottom:11px;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-primary" onclick="openAddModal()">＋ Agregar Accesorio</button>
+        <button class="btn btn-secondary" onclick="openBulkModal()">📥 Actualizar desde Excel</button>
       </div>
       <div id="inventoryList"></div>
     </div>
@@ -408,6 +409,39 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal('itemModal')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveItem()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL BULK UPDATE EXCEL -->
+<div class="modal-overlay" id="bulkModal">
+  <div class="modal" style="max-width:640px;max-height:88vh;overflow-y:auto;">
+    <div class="modal-title">📥 Actualizar Inventario desde Excel</div>
+    <div id="bulkStep1">
+      <div style="background:var(--surface2);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:12px;">
+        <b>Columnas reconocidas</b> (no importa el orden):
+        <br>• <b>CodProducto</b> (obligatorio) — debe existir ya en el inventario
+        <br>• <b>Stock</b> (opcional) — actualiza la cantidad en stock
+        <br>• <b>Costo</b> (opcional) — <b>CON ISV incluido</b>. El sistema divide entre 1.15
+        <br>• <b>Descripcion</b> (opcional) — actualiza el nombre
+        <br>• <b>Categoria</b> (opcional) — actualiza la categoría
+        <br><br>Las celdas vacías no modifican nada. Los códigos que no existan se saltan (no se crean productos nuevos).
+      </div>
+      <div class="form-group">
+        <label>Selecciona archivo Excel (.xlsx)</label>
+        <input type="file" id="bulkFile" accept=".xlsx,.xls,.csv" onchange="onBulkFileChange(event)">
+      </div>
+      <div id="bulkParseMsg" style="font-size:12px;color:var(--text2);"></div>
+    </div>
+    <div id="bulkStep2" style="display:none;">
+      <div id="bulkSummary" style="background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:12px;"></div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">Detalle de los primeros cambios:</div>
+      <div id="bulkDetails" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeBulkModal()">Cancelar</button>
+      <button class="btn btn-secondary" id="bulkBackBtn" style="display:none;" onclick="bulkBack()">← Atrás</button>
+      <button class="btn btn-primary" id="bulkConfirmBtn" style="display:none;" onclick="commitBulkUpdate()">Confirmar y Aplicar</button>
     </div>
   </div>
 </div>
@@ -647,7 +681,7 @@ function applyRoleVisibility(){
   const isAdmin=currentUser&&currentUser.role==='admin';
   document.getElementById('badgeRole').textContent=isAdmin?'👑 Admin':'👤 Empleado';
   document.getElementById('badgeRole').className='badge-role'+(isAdmin?' admin':'');
-  document.getElementById('adminAddBtn').style.display=isAdmin?'block':'none';
+  document.getElementById('adminAddBtn').style.display=isAdmin?'flex':'none';
   document.getElementById('nav-Usuarios').style.display=isAdmin?'flex':'none';
   document.getElementById('nav-Reportes').style.display=isAdmin?'flex':'none';
   document.getElementById('reportSemanaCard').style.display=isAdmin?'block':'none';
@@ -866,6 +900,151 @@ async function saveItem(){
     showLoader(false);
   }
 }
+// ─── Bulk update desde Excel ────────────────────────────────────────
+let bulkParsedRows=null;
+function openBulkModal(){
+  bulkParsedRows=null;
+  document.getElementById('bulkFile').value='';
+  document.getElementById('bulkParseMsg').textContent='';
+  document.getElementById('bulkStep1').style.display='block';
+  document.getElementById('bulkStep2').style.display='none';
+  document.getElementById('bulkBackBtn').style.display='none';
+  document.getElementById('bulkConfirmBtn').style.display='none';
+  openModal('bulkModal');
+}
+function closeBulkModal(){closeModal('bulkModal');}
+function bulkBack(){
+  document.getElementById('bulkStep1').style.display='block';
+  document.getElementById('bulkStep2').style.display='none';
+  document.getElementById('bulkBackBtn').style.display='none';
+  document.getElementById('bulkConfirmBtn').style.display='none';
+}
+function _normHeader(s){
+  return String(s||'').trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
+function _pickHeaderKey(headers, candidates){
+  for(let i=0;i<headers.length;i++){
+    const h=_normHeader(headers[i]);
+    if(candidates.includes(h)) return i;
+  }
+  return -1;
+}
+async function onBulkFileChange(ev){
+  const file=ev.target.files&&ev.target.files[0];
+  if(!file) return;
+  const msg=document.getElementById('bulkParseMsg');
+  msg.textContent='📄 Leyendo archivo...';
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    if(!ws){throw new Error('El archivo no tiene hojas');}
+    const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    if(aoa.length<2){throw new Error('El archivo no tiene filas de datos');}
+    const headers=aoa[0].map(h=>String(h||''));
+    const idxCode=_pickHeaderKey(headers,['codproducto','codigo','codigo producto','code','cod producto']);
+    const idxStock=_pickHeaderKey(headers,['stock','cantidad','existencia','cantidad en stock']);
+    const idxCost=_pickHeaderKey(headers,['costo','precio','costo con isv','costo c/isv','costo (con isv)']);
+    const idxName=_pickHeaderKey(headers,['descripcion','nombre','producto']);
+    const idxCat=_pickHeaderKey(headers,['categoria','cat']);
+    if(idxCode<0){throw new Error('No se encontró la columna CodProducto');}
+    const rows=[];
+    for(let r=1;r<aoa.length;r++){
+      const row=aoa[r];
+      if(!row) continue;
+      const codeRaw=row[idxCode];
+      if(codeRaw===undefined||codeRaw===null||String(codeRaw).trim()==='') continue;
+      const entry={code:String(codeRaw).trim()};
+      if(idxStock>=0){
+        const v=row[idxStock];
+        if(v!==''&&v!==null&&v!==undefined){
+          const n=parseInt(String(v).replace(/[^\d-]/g,''),10);
+          if(!isNaN(n)&&n>=0) entry.stock=n;
+        }
+      }
+      if(idxCost>=0){
+        const v=row[idxCost];
+        if(v!==''&&v!==null&&v!==undefined){
+          const n=parseFloat(String(v).replace(/[^\d.\-]/g,''));
+          if(!isNaN(n)&&n>=0) entry.cost_with_isv=n;
+        }
+      }
+      if(idxName>=0){
+        const v=row[idxName];
+        if(v!==''&&v!==null&&v!==undefined){entry.name=String(v).trim();}
+      }
+      if(idxCat>=0){
+        const v=row[idxCat];
+        if(v!==''&&v!==null&&v!==undefined){entry.cat=String(v).trim();}
+      }
+      rows.push(entry);
+    }
+    if(rows.length===0){throw new Error('No se encontraron filas con CodProducto');}
+    bulkParsedRows=rows;
+    msg.innerHTML='✅ <b>'+rows.length+'</b> filas leídas. Generando vista previa...';
+    const preview=await api('/api/inventory/bulk-update',{
+      method:'POST',
+      body:JSON.stringify({rows,isv_rate:0.15,commit:false}),
+    });
+    renderBulkPreview(preview);
+  }catch(err){
+    msg.textContent='⚠️ '+err.message;
+    bulkParsedRows=null;
+  }
+}
+function renderBulkPreview(p){
+  document.getElementById('bulkStep1').style.display='none';
+  document.getElementById('bulkStep2').style.display='block';
+  document.getElementById('bulkBackBtn').style.display='inline-flex';
+  document.getElementById('bulkConfirmBtn').style.display=p.would_update>0?'inline-flex':'none';
+  document.getElementById('bulkSummary').innerHTML=
+    '<div style="font-size:14px;"><b>📊 Resumen</b></div>'+
+    '<div style="margin-top:8px;font-size:13px;line-height:1.8;">'+
+    '• Total de filas en el archivo: <b>'+p.total_rows+'</b><br>'+
+    '• <span style="color:#10b981;">✓ Se actualizarán: <b>'+p.would_update+'</b></span><br>'+
+    '• <span style="color:var(--text2);">Sin cambios (iguales): '+p.no_changes+'</span><br>'+
+    '• <span style="color:#f59e0b;">⚠️ Códigos no encontrados: '+p.not_found+'</span><br>'+
+    '• <span style="color:#ef4444;">✘ Inválidos (duplicados, etc.): '+p.invalid+'</span>'+
+    '</div>';
+  const det=document.getElementById('bulkDetails');
+  const rows=(p.results||[]).filter(r=>r.action==='updated'||r.action==='skipped_not_found'||r.action==='invalid');
+  if(rows.length===0){
+    det.innerHTML='<div style="color:var(--text2);">(Nada para mostrar — todo igual a lo que ya tenías)</div>';
+    return;
+  }
+  const shown=rows.slice(0,80);
+  det.innerHTML=shown.map(r=>{
+    if(r.action==='updated'){
+      return '<div style="padding:4px 0;border-bottom:1px solid var(--border);"><b>'+esc(r.code)+'</b> — '+
+        r.changes.map(c=>'<span style="color:#10b981;">'+esc(c)+'</span>').join(' · ')+'</div>';
+    }
+    if(r.action==='skipped_not_found'){
+      return '<div style="padding:4px 0;border-bottom:1px solid var(--border);color:#f59e0b;">⚠️ <b>'+esc(r.code)+'</b> — no existe en el inventario</div>';
+    }
+    return '<div style="padding:4px 0;border-bottom:1px solid var(--border);color:#ef4444;">✘ <b>'+esc(r.code)+'</b> — '+esc(r.reason||'inválido')+'</div>';
+  }).join('')+(rows.length>shown.length?'<div style="color:var(--text2);margin-top:8px;">... y '+(rows.length-shown.length)+' más</div>':'');
+}
+async function commitBulkUpdate(){
+  if(!bulkParsedRows||bulkParsedRows.length===0) return;
+  if(!confirm('¿Confirmar aplicación de los cambios al inventario?')) return;
+  try{
+    showLoader(true);
+    const res=await api('/api/inventory/bulk-update',{
+      method:'POST',
+      body:JSON.stringify({rows:bulkParsedRows,isv_rate:0.15,commit:true}),
+    });
+    showToast('✅ '+res.would_update+' productos actualizados');
+    await loadInventory();
+    renderInventory();
+    closeBulkModal();
+  }catch(err){
+    showToast('⚠️ '+err.message,true);
+  }finally{
+    showLoader(false);
+  }
+}
+
 async function deleteItem(id){
   if(!confirm('¿Eliminar este accesorio?')) return;
   try{
