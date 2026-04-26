@@ -230,6 +230,7 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
       <div id="invCount" style="color:var(--text2);font-size:12px;margin-bottom:10px;"></div>
       <div id="adminAddBtn" style="display:none;margin-bottom:11px;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-primary" onclick="openAddModal()">＋ Agregar Accesorio</button>
+        <button class="btn btn-secondary" onclick="downloadInventoryTemplate()">📤 Descargar Plantilla Excel</button>
         <button class="btn btn-secondary" onclick="openBulkModal()">📥 Actualizar desde Excel</button>
       </div>
       <div id="inventoryList"></div>
@@ -419,13 +420,17 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
     <div class="modal-title">📥 Actualizar Inventario desde Excel</div>
     <div id="bulkStep1">
       <div style="background:var(--surface2);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:12px;">
-        <b>Columnas reconocidas</b> (no importa el orden):
+        <b>💡 Recomendado:</b> primero descargá la plantilla con los datos actuales, editás solo lo que querés cambiar, y la volvés a subir.
+        <br><br><b>Columnas reconocidas</b> (no importa el orden):
         <br>• <b>CodProducto</b> (obligatorio) — debe existir ya en el inventario
         <br>• <b>Stock</b> (opcional) — actualiza la cantidad en stock
         <br>• <b>Costo</b> (opcional) — <b>CON ISV incluido</b>. El sistema divide entre 1.15
         <br>• <b>Descripcion</b> (opcional) — actualiza el nombre
         <br>• <b>Categoria</b> (opcional) — actualiza la categoría
         <br><br>Las celdas vacías no modifican nada. Los códigos que no existan se saltan (no se crean productos nuevos).
+      </div>
+      <div style="margin-bottom:10px;">
+        <button class="btn btn-secondary" style="width:100%;" onclick="downloadInventoryTemplate()">📤 Descargar plantilla con datos actuales</button>
       </div>
       <div class="form-group">
         <label>Selecciona archivo Excel (.xlsx)</label>
@@ -902,6 +907,38 @@ async function saveItem(){
 }
 // ─── Bulk update desde Excel ────────────────────────────────────────
 let bulkParsedRows=null;
+function downloadInventoryTemplate(){
+  const inv=getInventory();
+  if(!inv||inv.length===0){showToast('No hay productos en el inventario',true);return;}
+  const ISV=0.15;
+  const header=['CodProducto','Descripcion','Categoria','Stock','Costo (CON ISV)'];
+  const aoa=[header];
+  inv.forEach(it=>{
+    const costSinIsv=Number(it.cost||0);
+    const costConIsv=+(costSinIsv*(1+ISV)).toFixed(4);
+    aoa.push([
+      it.code||'',
+      it.name||'',
+      it.cat||'',
+      Number(it.stock||0),
+      costConIsv,
+    ]);
+  });
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  // Ancho sugerido de columnas.
+  ws['!cols']=[{wch:14},{wch:48},{wch:18},{wch:10},{wch:16}];
+  // Dar formato moneda a la columna de costo.
+  const range=XLSX.utils.decode_range(ws['!ref']);
+  for(let r=1;r<=range.e.r;r++){
+    const addr=XLSX.utils.encode_cell({c:4,r});
+    if(ws[addr]){ws[addr].t='n';ws[addr].z='"L. "#,##0.00';}
+  }
+  XLSX.utils.book_append_sheet(wb,ws,'Inventario');
+  const today=new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb,`Plantilla_Inventario_${today}.xlsx`);
+  showToast('📤 Plantilla descargada');
+}
 function openBulkModal(){
   bulkParsedRows=null;
   document.getElementById('bulkFile').value='';
@@ -945,7 +982,7 @@ async function onBulkFileChange(ev){
     const headers=aoa[0].map(h=>String(h||''));
     const idxCode=_pickHeaderKey(headers,['codproducto','codigo','codigo producto','code','cod producto']);
     const idxStock=_pickHeaderKey(headers,['stock','cantidad','existencia','cantidad en stock']);
-    const idxCost=_pickHeaderKey(headers,['costo','precio','costo con isv','costo c/isv','costo (con isv)']);
+    const idxCost=_pickHeaderKey(headers,['costo','precio','costo con isv','costo c/isv','costo (con isv)','costo (con isv 15%)','costo con 15%']);
     const idxName=_pickHeaderKey(headers,['descripcion','nombre','producto']);
     const idxCat=_pickHeaderKey(headers,['categoria','cat']);
     if(idxCode<0){throw new Error('No se encontró la columna CodProducto');}
