@@ -313,14 +313,31 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
     <div id="tabCajas" class="tab-view">
       <div class="hist-tabs">
         <button class="hist-tab active" id="cjTabCajas" onclick="switchCajaSubTab('cajas')">🧰 CAJAS</button>
+        <button class="hist-tab" id="cjTabPlant" onclick="switchCajaSubTab('plant')">📋 PLANTILLAS</button>
         <button class="hist-tab" id="cjTabInst" onclick="switchCajaSubTab('inst')">👷 INSTALADORES</button>
         <button class="hist-tab" id="cjTabHerr" onclick="switchCajaSubTab('herr')">🛠 HERRAMIENTAS</button>
       </div>
 
       <!-- Lista / crear cajas del dia -->
       <div class="hist-panel active" id="cjPanelCajas">
+        <div id="cajasRangoBar" style="display:none;margin-bottom:10px;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-secondary" id="cjRangoHoy" onclick="setCajasRango('hoy')">HOY</button>
+          <button class="btn btn-secondary" id="cjRangoSem" onclick="setCajasRango('semana')">📊 SEMANA</button>
+          <button class="btn btn-secondary" id="cjRangoAll" onclick="setCajasRango('all')">📚 HISTORIAL</button>
+        </div>
         <button class="btn btn-primary" onclick="openCajaModal()" style="margin-bottom:14px;">＋ Asignar nueva caja</button>
         <div id="cajasList"></div>
+      </div>
+
+      <!-- Plantillas -->
+      <div class="hist-panel" id="cjPanelPlant">
+        <button class="btn btn-primary" onclick="openPlantillaModal()" style="margin-bottom:14px;">＋ Crear Plantilla</button>
+        <div style="color:var(--text2);font-size:12px;margin-bottom:10px;">
+          Las plantillas te permiten guardar "Cajas Completas" listas para usar.
+          Al asignar una caja, eliges una plantilla y se pre-llena con las
+          herramientas y cantidades. Puedes modificarlas antes de guardar (Caja modificada).
+        </div>
+        <div id="plantillasList"></div>
       </div>
 
       <!-- Catalogo de instaladores -->
@@ -457,6 +474,13 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
   <div class="modal" style="max-height:88vh;overflow-y:auto;">
     <div class="modal-title">Asignar Caja de Herramientas</div>
     <div class="form-group">
+      <label>📋 Usar Plantilla (opcional)</label>
+      <select id="cjPlantillaSel" class="date-picker" onchange="applyPlantillaToCaja()">
+        <option value="">— Sin plantilla (Caja modificada desde cero) —</option>
+      </select>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px;">Pre-llena las cantidades con una plantilla guardada. Puedes ajustarlas después (eso sería una "Caja Modificada").</div>
+    </div>
+    <div class="form-group">
       <label>Fecha</label>
       <input type="date" id="cjFecha">
     </div>
@@ -477,6 +501,26 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal('cajaModal')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveCaja()">Asignar Caja</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PLANTILLA -->
+<div class="modal-overlay" id="plantillaModal">
+  <div class="modal" style="max-height:88vh;overflow-y:auto;">
+    <div class="modal-title" id="plModalTitle">Crear Plantilla</div>
+    <div class="form-group">
+      <label>Nombre de la plantilla</label>
+      <input type="text" id="plName" placeholder="Ej: Caja Instalador Estándar">
+    </div>
+    <div class="form-group">
+      <label>🧰 Herramientas y cantidades</label>
+      <div id="plHerrPicker" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--surface2);"></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px;">Pon la cantidad por defecto. Deja 0 las que no van.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('plantillaModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePlantilla()">Guardar Plantilla</button>
     </div>
   </div>
 </div>
@@ -537,19 +581,27 @@ async function api(path,opts={}){
 function showLoader(on){document.getElementById('loaderOverlay').classList.toggle('show',!!on);}
 
 // ── IN-MEMORY CACHE ──────────────────────────────────────
-const CACHE={inventory:[],usage:[],users:[],instaladores:[],herramientas:[],cajas:[]};
+const CACHE={inventory:[],usage:[],users:[],instaladores:[],herramientas:[],cajas:[],plantillas:[]};
+let cajasRango='hoy';
 async function loadInventory(){CACHE.inventory=await api('/api/inventory');return CACHE.inventory;}
 async function loadUsage(){CACHE.usage=await api('/api/usage');return CACHE.usage;}
 async function loadUsers(){CACHE.users=await api('/api/users');return CACHE.users;}
 async function loadInstaladores(){CACHE.instaladores=await api('/api/instaladores');return CACHE.instaladores;}
 async function loadHerramientas(){CACHE.herramientas=await api('/api/herramientas');return CACHE.herramientas;}
-async function loadCajas(){CACHE.cajas=await api('/api/cajas');return CACHE.cajas;}
+async function loadCajas(){
+  const isAdmin=currentUser&&currentUser.role==='admin';
+  const q=isAdmin?('?rango='+encodeURIComponent(cajasRango)):'';
+  CACHE.cajas=await api('/api/cajas'+q);
+  return CACHE.cajas;
+}
+async function loadPlantillas(){CACHE.plantillas=await api('/api/plantillas');return CACHE.plantillas;}
 function getInventory(){return CACHE.inventory||[];}
 function getUsage(){return CACHE.usage||[];}
 function getUsers(){return CACHE.users||[];}
 function getInstaladores(){return CACHE.instaladores||[];}
 function getHerramientas(){return CACHE.herramientas||[];}
 function getCajas(){return CACHE.cajas||[];}
+function getPlantillas(){return CACHE.plantillas||[];}
 
 // ── AUTH ─────────────────────────────────────────────────
 let currentUser=null;
@@ -580,7 +632,7 @@ async function doLogin(){
 function doLogout(){
   setToken(null);
   currentUser=null;
-  CACHE.inventory=[];CACHE.usage=[];CACHE.users=[];CACHE.instaladores=[];CACHE.herramientas=[];CACHE.cajas=[];
+  CACHE.inventory=[];CACHE.usage=[];CACHE.users=[];CACHE.instaladores=[];CACHE.herramientas=[];CACHE.cajas=[];CACHE.plantillas=[];
   document.getElementById('appScreen').classList.remove('active');
   document.getElementById('loginScreen').classList.add('active');
   // Reset tab DOM without triggering data fetches (no currentUser = no auth).
@@ -650,7 +702,7 @@ async function switchTab(tab){
     else if(tab==='Inventario'){await loadInventory();renderInventory();}
     else if(tab==='Uso'){await loadInventory();renderUsageList();}
     else if(tab==='Historial'){await loadUsage();renderHistorial();}
-    else if(tab==='Cajas'){await Promise.all([loadInstaladores(),loadHerramientas(),loadCajas()]);renderCajasTab();}
+    else if(tab==='Cajas'){await Promise.all([loadInstaladores(),loadHerramientas(),loadCajas(),loadPlantillas()]);renderCajasTab();}
     else if(tab==='Usuarios'){await loadUsers();renderUsers();}
   }catch(err){
     if(err.status===401){doLogout();return;}
@@ -1554,10 +1606,16 @@ async function deleteUser(id){
 // ── CAJAS DE HERRAMIENTAS ────────────────────────────────
 let editingInstId=null;
 let editingHerrId=null;
+let editingPlantillaId=null;
 let revisarCajaId=null;
 
 function switchCajaSubTab(which){
-  const tabs={'cajas':['cjTabCajas','cjPanelCajas'],'inst':['cjTabInst','cjPanelInst'],'herr':['cjTabHerr','cjPanelHerr']};
+  const tabs={
+    'cajas':['cjTabCajas','cjPanelCajas'],
+    'plant':['cjTabPlant','cjPanelPlant'],
+    'inst':['cjTabInst','cjPanelInst'],
+    'herr':['cjTabHerr','cjPanelHerr'],
+  };
   Object.values(tabs).forEach(([t,p])=>{
     document.getElementById(t).classList.remove('active');
     document.getElementById(p).classList.remove('active');
@@ -1566,14 +1624,39 @@ function switchCajaSubTab(which){
   document.getElementById(t).classList.add('active');
   document.getElementById(p).classList.add('active');
   if(which==='cajas') renderCajasList();
+  else if(which==='plant') renderPlantillasList();
   else if(which==='inst') renderInstList();
   else if(which==='herr') renderHerrList();
 }
 
 function renderCajasTab(){
+  const isAdmin=currentUser&&currentUser.role==='admin';
+  const rangoBar=document.getElementById('cajasRangoBar');
+  rangoBar.style.display=isAdmin?'flex':'none';
+  if(isAdmin) updateRangoButtons();
   renderCajasList();
   renderInstList();
   renderHerrList();
+  renderPlantillasList();
+}
+
+function updateRangoButtons(){
+  ['hoy','semana','all'].forEach(r=>{
+    const id={'hoy':'cjRangoHoy','semana':'cjRangoSem','all':'cjRangoAll'}[r];
+    const btn=document.getElementById(id);
+    if(!btn) return;
+    btn.className='btn '+(cajasRango===r?'btn-primary':'btn-secondary');
+  });
+}
+async function setCajasRango(r){
+  cajasRango=r;
+  updateRangoButtons();
+  try{
+    showLoader(true);
+    await loadCajas();
+    renderCajasList();
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
 }
 
 function cajaFormatHora(iso){
@@ -1633,11 +1716,11 @@ function renderCajaCard(c){
     ?`<div style="color:var(--text2);font-size:11px;margin-top:8px;">✔ Revisado por: <b>${esc(c.revisada_por)}</b> — ${cajaFormatFechaHora(c.hora_revision)}</div>`
     :'';
   const notasHtml=c.notas?`<div style="color:var(--text2);font-size:11px;margin-top:4px;font-style:italic;">📝 ${esc(c.notas)}</div>`:'';
+  const isAdmin=currentUser&&currentUser.role==='admin';
+  const deleteBtn=isAdmin?`<button class="btn btn-secondary" onclick="deleteCaja(${c.id})">🗑 Borrar</button>`:'';
   const actions=pendiente
-    ? `<button class="btn btn-green" onclick="openRevisarModal(${c.id})">👁 Revisar al regreso</button>
-       <button class="btn btn-secondary" onclick="deleteCaja(${c.id})">🗑 Borrar</button>`
-    : `<button class="btn btn-secondary" onclick="openRevisarModal(${c.id})">✏️ Corregir revisión</button>
-       <button class="btn btn-secondary" onclick="deleteCaja(${c.id})">🗑 Borrar</button>`;
+    ? `<button class="btn btn-green" onclick="openRevisarModal(${c.id})">👁 Revisar al regreso</button>${deleteBtn}`
+    : `<button class="btn btn-secondary" onclick="openRevisarModal(${c.id})">✏️ Corregir revisión</button>${deleteBtn}`;
   return `<div class="stat-card" style="padding:14px;margin-bottom:14px;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px;">
       <div style="flex:1;">
@@ -1782,6 +1865,12 @@ async function openCajaModal(){
   if(!herr.length){showToast('Primero agrega al menos una herramienta',true);return;}
   document.getElementById('cjFecha').value=todayStr();
   document.getElementById('cjNotas').value='';
+  // Poblar selector de plantillas.
+  const plantillas=getPlantillas();
+  const plSel=document.getElementById('cjPlantillaSel');
+  plSel.innerHTML='<option value="">— Sin plantilla (Caja modificada desde cero) —</option>'
+    +plantillas.map(p=>`<option value="${p.id}">📋 ${esc(p.nombre)}</option>`).join('');
+  plSel.value='';
   const instBox=document.getElementById('cjInstPicker');
   instBox.innerHTML=inst.map(i=>`<label style="display:flex;align-items:center;gap:8px;padding:4px 0;">
     <input type="checkbox" class="cj-inst-chk" value="${i.id}"> 
@@ -1793,6 +1882,20 @@ async function openCajaModal(){
     <input type="number" min="0" step="1" value="0" class="cj-herr-qty" data-id="${h.id}" style="width:68px;padding:4px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);text-align:center;">
   </div>`).join('');
   openModal('cajaModal');
+}
+function applyPlantillaToCaja(){
+  const plId=Number(document.getElementById('cjPlantillaSel').value||0);
+  // Reset a 0 todos los inputs.
+  document.querySelectorAll('.cj-herr-qty').forEach(el=>{el.value='0';});
+  if(!plId) return;
+  const p=getPlantillas().find(x=>x.id===plId);
+  if(!p) return;
+  const qtyById={};
+  (p.items||[]).forEach(it=>{qtyById[it.herramienta_id]=it.cantidad;});
+  document.querySelectorAll('.cj-herr-qty').forEach(el=>{
+    const hid=Number(el.dataset.id);
+    if(qtyById[hid]!==undefined) el.value=String(qtyById[hid]);
+  });
 }
 async function saveCaja(){
   const fecha=document.getElementById('cjFecha').value;
@@ -1856,6 +1959,7 @@ async function saveRevision(){
 }
 
 async function deleteCaja(id){
+  if(currentUser.role!=='admin'){showToast('Solo el administrador puede borrar cajas',true);return;}
   if(!confirm('¿Eliminar esta caja? Esto borra también la revisión y los items.')) return;
   try{
     showLoader(true);
@@ -1863,6 +1967,84 @@ async function deleteCaja(id){
     await loadCajas();
     renderCajasList();
     showToast('🗑️ Caja eliminada');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+
+// ── Plantillas CRUD ──
+function renderPlantillasList(){
+  const list=getPlantillas();
+  const cont=document.getElementById('plantillasList');
+  if(!cont) return;
+  if(!list.length){
+    cont.innerHTML='<div style="color:var(--text2);text-align:center;padding:30px;">Sin plantillas aún. Crea la primera con "＋ Crear Plantilla".</div>';
+    return;
+  }
+  cont.innerHTML=list.map(p=>{
+    const items=(p.items||[]).map(it=>`<span style="display:inline-block;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:2px 8px;margin:2px;font-size:11px;"><b>${it.cantidad}</b> ${esc(it.herramienta_nombre||'')}</span>`).join('');
+    return `<div class="stat-card" style="padding:12px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+        <div style="flex:1;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:15px;">📋 ${esc(p.nombre)}</div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-secondary" onclick="openPlantillaModal(${p.id})">✏️</button>
+          <button class="btn btn-secondary" onclick="deletePlantilla(${p.id})">🗑</button>
+        </div>
+      </div>
+      <div style="margin-top:8px;line-height:1.9;">${items||'<span style="color:var(--text2);font-size:12px;">(sin herramientas)</span>'}</div>
+    </div>`;
+  }).join('');
+}
+function openPlantillaModal(id){
+  const herr=getHerramientas().filter(h=>h.activo);
+  if(!herr.length){showToast('Primero agrega al menos una herramienta',true);return;}
+  editingPlantillaId=id||null;
+  document.getElementById('plModalTitle').textContent=id?'Editar Plantilla':'Crear Plantilla';
+  document.getElementById('plName').value='';
+  const box=document.getElementById('plHerrPicker');
+  const qtyById={};
+  if(id){
+    const p=getPlantillas().find(x=>x.id===id);
+    if(p){
+      document.getElementById('plName').value=p.nombre;
+      (p.items||[]).forEach(it=>{qtyById[it.herramienta_id]=it.cantidad;});
+    }
+  }
+  box.innerHTML=herr.map(h=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed var(--border);">
+    <div style="flex:1;">🛠 ${esc(h.nombre)}</div>
+    <input type="number" min="0" step="1" value="${qtyById[h.id]||0}" class="pl-herr-qty" data-id="${h.id}" style="width:68px;padding:4px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);text-align:center;">
+  </div>`).join('');
+  openModal('plantillaModal');
+}
+async function savePlantilla(){
+  const nombre=document.getElementById('plName').value.trim();
+  if(!nombre){showToast('El nombre es obligatorio',true);return;}
+  const items=[...document.querySelectorAll('.pl-herr-qty')]
+    .map(el=>({herramienta_id:Number(el.dataset.id),cantidad:Number(el.value||0)}))
+    .filter(it=>it.cantidad>0);
+  if(!items.length){showToast('Pon al menos una herramienta con cantidad > 0',true);return;}
+  try{
+    showLoader(true);
+    if(editingPlantillaId){
+      await api('/api/plantillas/'+editingPlantillaId,{method:'PUT',body:JSON.stringify({nombre,items})});
+      showToast('✅ Plantilla actualizada');
+    }else{
+      await api('/api/plantillas',{method:'POST',body:JSON.stringify({nombre,items})});
+      showToast('✅ Plantilla creada');
+    }
+    await loadPlantillas();
+    renderPlantillasList();
+    closeModal('plantillaModal');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+async function deletePlantilla(id){
+  if(!confirm('¿Eliminar esta plantilla?')) return;
+  try{
+    showLoader(true);
+    await api('/api/plantillas/'+id,{method:'DELETE'});
+    await loadPlantillas();
+    renderPlantillasList();
+    showToast('🗑️ Plantilla eliminada');
   }catch(err){showToast('⚠️ '+err.message,true);}
   finally{showLoader(false);}
 }

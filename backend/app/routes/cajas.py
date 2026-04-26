@@ -16,12 +16,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user
+from ..auth import get_current_user, require_admin
 from ..db import get_db
 from ..models import (
     CajaHerramienta,
     CajaInstalador,
     CajaItem,
+    CajaPlantilla,
+    CajaPlantillaItem,
     Herramienta,
     Instalador,
     User,
@@ -35,6 +37,9 @@ from ..schemas import (
     HerramientaOut,
     InstaladorIn,
     InstaladorOut,
+    PlantillaIn,
+    PlantillaItemOut,
+    PlantillaOut,
 )
 
 
@@ -189,6 +194,15 @@ def delete_herramienta(
 
 
 # ── Cajas ──────────────────────────────────────────────────────
+def _iso_utc(dt: datetime | None) -> str | None:
+    """Devuelve ISO con sufijo Z para que el frontend lo interprete como UTC
+    y lo convierta a hora local. Nuestros datetimes se guardan con
+    datetime.utcnow(), asi que son siempre UTC aunque sean naive."""
+    if dt is None:
+        return None
+    return dt.replace(microsecond=0).isoformat() + "Z"
+
+
 def _caja_to_out(caja: CajaHerramienta) -> CajaHerramientaOut:
     items_out = [
         CajaItemOut(
@@ -214,10 +228,10 @@ def _caja_to_out(caja: CajaHerramienta) -> CajaHerramientaOut:
     return CajaHerramientaOut(
         id=caja.id,
         fecha=caja.fecha,
-        hora_entrega=caja.hora_entrega.isoformat() if caja.hora_entrega else "",
+        hora_entrega=_iso_utc(caja.hora_entrega) or "",
         creada_por=caja.creada_por_username or "",
         revisada_por=caja.revisada_por_username or None,
-        hora_revision=caja.hora_revision.isoformat() if caja.hora_revision else None,
+        hora_revision=_iso_utc(caja.hora_revision),
         instaladores=instaladores_out,
         items=items_out,
         total_entregadas=total_ent,
@@ -232,13 +246,33 @@ def _caja_to_out(caja: CajaHerramienta) -> CajaHerramientaOut:
 def list_cajas(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
+    rango: str = "all",
 ) -> list[CajaHerramientaOut]:
-    rows = (
-        db.query(CajaHerramienta)
-        .order_by(CajaHerramienta.fecha.desc(), CajaHerramienta.id.desc())
-        .all()
+    """Lista cajas.
+
+    Admin: puede filtrar por rango=hoy|semana|all (default all, historial completo).
+    Empleado: siempre ve solo las cajas de HOY, ignora el parametro rango.
+    """
+    from datetime import date, timedelta
+
+    q = db.query(CajaHerramienta).order_by(
+        CajaHerramienta.fecha.desc(), CajaHerramienta.id.desc()
     )
-    return [_caja_to_out(r) for r in rows]
+
+    today = date.today().isoformat()
+    if user.role != "admin":
+        # Empleado: siempre ve solo hoy (el historial es solo-admin).
+        q = q.filter(CajaHerramienta.fecha == today)
+    else:
+        if rango == "hoy":
+            q = q.filter(CajaHerramienta.fecha == today)
+        elif rango == "semana":
+            # Semana corrida: hoy y los 6 dias anteriores.
+            hace7 = (date.today() - timedelta(days=6)).isoformat()
+            q = q.filter(CajaHerramienta.fecha >= hace7)
+        # rango 'all' (default) o desconocido: sin filtro de fecha.
+
+    return [_caja_to_out(r) for r in q.all()]
 
 
 @router.post("/api/cajas", response_model=CajaHerramientaOut, status_code=status.HTTP_201_CREATED)
@@ -358,12 +392,117 @@ def revisar_caja(
 @router.delete("/api/cajas/{caja_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_caja(
     caja_id: int,
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_admin)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
+    # Solo admin puede borrar del historial.
     caja = db.get(CajaHerramienta, caja_id)
     if caja is None:
         raise HTTPException(status_code=404, detail="Caja no encontrada")
     db.delete(caja)
+    db.commit()
+    return None
+
+
+# ── Plantillas de Caja ────────────────────────────────────────
+def _plantilla_to_out(p: CajaPlantilla, h_by_id: dict[int, Herramienta]) -> PlantillaOut:
+    items_out = [
+        PlantillaItemOut(
+            herramienta_id=it.herramienta_id,
+            herramienta_nombre=(h_by_id.get(it.herramienta_id).nombre if h_by_id.get(it.herramienta_id) else ""),
+            cantidad=int(it.cantidad or 0),
+        )
+        for it in p.items
+    ]
+    return PlantillaOut(id=p.id, nombre=p.nombre, items=items_out)
+
+
+@router.get("/api/plantillas", response_model=list[PlantillaOut])
+def list_plantillas(
+    _: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[PlantillaOut]:
+    plantillas = db.query(CajaPlantilla).order_by(CajaPlantilla.nombre).all()
+    h_by_id = {h.id: h for h in db.query(Herramienta).all()}
+    return [_plantilla_to_out(p, h_by_id) for p in plantillas]
+
+
+@router.post("/api/plantillas", response_model=PlantillaOut, status_code=status.HTTP_201_CREATED)
+def create_plantilla(
+    payload: PlantillaIn,
+    _: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> PlantillaOut:
+    nombre = payload.nombre.strip()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="Nombre requerido")
+    if db.query(CajaPlantilla).filter(CajaPlantilla.nombre == nombre).first() is not None:
+        raise HTTPException(status_code=409, detail="Ya existe una plantilla con ese nombre")
+    h_ids = [it.herramienta_id for it in payload.items]
+    if len(h_ids) != len(set(h_ids)):
+        raise HTTPException(status_code=400, detail="Herramientas duplicadas en la plantilla")
+    h_rows = db.query(Herramienta).filter(Herramienta.id.in_(h_ids)).all()
+    if len(h_rows) != len(h_ids):
+        raise HTTPException(status_code=400, detail="Una o mas herramientas no existen")
+    plantilla = CajaPlantilla(nombre=nombre)
+    db.add(plantilla)
+    db.flush()
+    for it in payload.items:
+        db.add(CajaPlantillaItem(plantilla_id=plantilla.id, herramienta_id=it.herramienta_id, cantidad=int(it.cantidad)))
+    db.commit()
+    db.refresh(plantilla)
+    h_by_id = {h.id: h for h in h_rows}
+    return _plantilla_to_out(plantilla, h_by_id)
+
+
+@router.put("/api/plantillas/{plantilla_id}", response_model=PlantillaOut)
+def update_plantilla(
+    plantilla_id: int,
+    payload: PlantillaIn,
+    _: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> PlantillaOut:
+    plantilla = db.get(CajaPlantilla, plantilla_id)
+    if plantilla is None:
+        raise HTTPException(status_code=404, detail="Plantilla no encontrada")
+    nombre = payload.nombre.strip()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="Nombre requerido")
+    dupe = (
+        db.query(CajaPlantilla)
+        .filter(CajaPlantilla.nombre == nombre, CajaPlantilla.id != plantilla_id)
+        .first()
+    )
+    if dupe is not None:
+        raise HTTPException(status_code=409, detail="Ya existe otra plantilla con ese nombre")
+    h_ids = [it.herramienta_id for it in payload.items]
+    if len(h_ids) != len(set(h_ids)):
+        raise HTTPException(status_code=400, detail="Herramientas duplicadas en la plantilla")
+    h_rows = db.query(Herramienta).filter(Herramienta.id.in_(h_ids)).all()
+    if len(h_rows) != len(h_ids):
+        raise HTTPException(status_code=400, detail="Una o mas herramientas no existen")
+    plantilla.nombre = nombre
+    # Reemplaza items completamente.
+    for it in list(plantilla.items):
+        db.delete(it)
+    db.flush()
+    for it in payload.items:
+        db.add(CajaPlantillaItem(plantilla_id=plantilla.id, herramienta_id=it.herramienta_id, cantidad=int(it.cantidad)))
+    db.commit()
+    db.refresh(plantilla)
+    h_by_id = {h.id: h for h in h_rows}
+    return _plantilla_to_out(plantilla, h_by_id)
+
+
+@router.delete("/api/plantillas/{plantilla_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_plantilla(
+    plantilla_id: int,
+    _: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    plantilla = db.get(CajaPlantilla, plantilla_id)
+    if plantilla is None:
+        raise HTTPException(status_code=404, detail="Plantilla no encontrada")
+    db.delete(plantilla)
     db.commit()
     return None

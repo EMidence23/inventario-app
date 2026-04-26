@@ -118,3 +118,30 @@ class CajaItem(Base):
     estado: Mapped[str] = mapped_column(String(16), nullable=False, default="pendiente")
 
     caja: Mapped["CajaHerramienta"] = relationship("CajaHerramienta", back_populates="items")
+
+
+class CajaPlantilla(Base):
+    """Plantilla reutilizable para una caja (ej: 'Caja Instalador Estandar').
+    Define un set de herramientas con cantidades que luego se usa para
+    pre-llenar una nueva caja."""
+
+    __tablename__ = "caja_plantillas"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(120), unique=True, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    items: Mapped[list["CajaPlantillaItem"]] = relationship(
+        "CajaPlantillaItem", back_populates="plantilla", cascade="all, delete-orphan"
+    )
+
+
+class CajaPlantillaItem(Base):
+    __tablename__ = "caja_plantilla_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plantilla_id: Mapped[int] = mapped_column(ForeignKey("caja_plantillas.id", ondelete="CASCADE"), nullable=False, index=True)
+    herramienta_id: Mapped[int] = mapped_column(ForeignKey("herramientas.id", ondelete="RESTRICT"), nullable=False)
+    cantidad: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+    plantilla: Mapped["CajaPlantilla"] = relationship("CajaPlantilla", back_populates="items")

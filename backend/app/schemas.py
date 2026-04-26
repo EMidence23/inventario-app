@@ -142,6 +142,28 @@ class CajaRevisionIn(BaseModel):
     notas: str | None = None
 
 
+class PlantillaItemIn(BaseModel):
+    herramienta_id: int
+    cantidad: int = Field(ge=1)
+
+
+class PlantillaItemOut(BaseModel):
+    herramienta_id: int
+    herramienta_nombre: str
+    cantidad: int
+
+
+class PlantillaIn(BaseModel):
+    nombre: str = Field(min_length=1, max_length=120)
+    items: list[PlantillaItemIn] = Field(min_length=1)
+
+
+class PlantillaOut(BaseModel):
+    id: int
+    nombre: str
+    items: list[PlantillaItemOut]
+
+
 class CajaHerramientaOut(BaseModel):
     id: int
     fecha: str
