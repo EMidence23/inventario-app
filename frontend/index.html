@@ -354,8 +354,9 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
       <input type="number" id="iStock" min="0" step="1" placeholder="Ej: 100">
     </div>
     <div class="form-group">
-      <label>Costo Unitario (L.)</label>
-      <input type="number" id="iCost" min="0" step="0.01" placeholder="Ej: 25.50">
+      <label>Costo Unitario SIN ISV (L.)</label>
+      <input type="number" id="iCost" min="0" step="0.01" placeholder="Ej: 25.50" oninput="updateIsvPreview()">
+      <div id="iCostIsvPreview" style="font-size:11px;color:var(--text2);margin-top:4px;">Con ISV (15%): L. 0.00</div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal('itemModal')">Cancelar</button>
@@ -618,7 +619,10 @@ function renderInventory(){
     const s=Number(i.stock||0);
     const cls=s===0?'stock-zero':(s<=20?'stock-low':'stock-ok');
     const c=Number(i.cost||0);
-    const costoHtml=isAdmin?`<div class="stock-badge stock-ok" style="margin-left:6px;background:rgba(56,139,253,.15);color:#79b8ff;border-color:rgba(56,139,253,.35);">💰 ${formatLempira(c)}</div>`:'';
+    const cIsv=withIsv(c);
+    const costoHtml=isAdmin?`
+      <div class="stock-badge stock-ok" style="margin-left:6px;background:rgba(56,139,253,.15);color:#79b8ff;border-color:rgba(56,139,253,.35);" title="Sin ISV">💰 ${formatLempira(c)}</div>
+      <div class="stock-badge stock-ok" style="margin-left:4px;background:rgba(187,128,9,.15);color:#e3b341;border-color:rgba(187,128,9,.35);" title="Con ISV 15%">+ISV ${formatLempira(cIsv)}</div>`:'';
     return `
     <div class="item-card">
       <div class="item-info">
@@ -636,12 +640,18 @@ function renderInventory(){
     </div>`;
   }).join('');
 }
+function updateIsvPreview(){
+  const v=parseFloat(document.getElementById('iCost').value)||0;
+  const p=document.getElementById('iCostIsvPreview');
+  if(p) p.textContent=`Con ISV (${(ISV_RATE*100).toFixed(0)}%): ${formatLempira(withIsv(v))}`;
+}
 function openAddModal(){
   editingItemId=null;
   document.getElementById('itemModalTitle').textContent='Agregar Accesorio';
   ['iCode','iName','iCat'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('iStock').value='100';
   document.getElementById('iCost').value='';
+  updateIsvPreview();
   openModal('itemModal');
 }
 function openEditModal(id){
@@ -654,6 +664,7 @@ function openEditModal(id){
   document.getElementById('iCat').value=item.cat||'';
   document.getElementById('iStock').value=Number(item.stock||0);
   document.getElementById('iCost').value=Number(item.cost||0).toFixed(2);
+  updateIsvPreview();
   openModal('itemModal');
 }
 async function saveItem(){
@@ -805,7 +816,7 @@ function renderHistHoy(){
     const detalle=u.items.map(i=>{
       const c=getCostByCode(i.code);
       const sub=c*i.qtyUsed;
-      const costoLine=isAdmin?`<div style="font-size:11px;color:var(--text2);">${formatLempira(c)} c/u · <strong style="color:var(--green)">${formatLempira(sub)}</strong></div>`:'';
+      const costoLine=isAdmin?`<div style="font-size:11px;color:var(--text2);">${formatLempira(c)} c/u · <strong style="color:var(--green)">${formatLempira(sub)}</strong> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(sub))})</span></div>`:'';
       return `
       <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
         <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div>${costoLine}</div>
@@ -817,7 +828,7 @@ function renderHistHoy(){
       <div class="uso-card-header" onclick="toggleUsoH('rh-${idx}')">
         <div class="uso-card-info">
           <div class="uso-card-title">🕐 ${hora} &nbsp;<span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">por ${esc(u.user)}</span></div>
-          <div class="uso-card-sub">${u.items.length} artículo(s) · <strong style="color:var(--accent)">${total}</strong> unidades${isAdmin?` · <strong style="color:var(--green)">${formatLempira(subtotalReg)}</strong>`:''}</div>
+          <div class="uso-card-sub">${u.items.length} artículo(s) · <strong style="color:var(--accent)">${total}</strong> unidades${isAdmin?` · <strong style="color:var(--green)">${formatLempira(subtotalReg)}</strong> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(subtotalReg))})</span>`:''}</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
           ${isAdmin?`<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteUsageRecord(${u.id})">🗑️</button>`:''}
@@ -832,9 +843,15 @@ function renderHistHoy(){
   }).join('');
 
   const costoBox=isAdmin?`
-    <div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(46,160,67,.35);">
-      <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total del día</div>
-      <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(totalCosto)}</div>
+    <div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;border:1px solid rgba(46,160,67,.35);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total del día (sin ISV)</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(totalCosto)}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+        <div style="color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:1px;">+ ISV 15%</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:600;color:#e3b341">${formatLempira(withIsv(totalCosto))}</div>
+      </div>
     </div>`:'';
   div.innerHTML=`
     <div style="background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:12px;display:flex;justify-content:space-between;">
@@ -848,7 +865,7 @@ function renderHistHoy(){
       <div class="hist-item">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)}${isAdmin?` · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span> <span style="color:var(--text2);">(${formatLempira(s.cost)} c/u)</span>`:''}</div>
+          <div class="item-code">${esc(s.code)}${isAdmin?` · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(s.subtotal))})</span> <span style="color:var(--text2);">(${formatLempira(s.cost)} c/u s/ISV)</span>`:''}</div>
         </div>
         <div class="hist-qty">${s.total}</div>
       </div>`).join('')}
@@ -923,16 +940,22 @@ function renderHistSemana(){
       <div style="text-align:center"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--blue)">${usage.length}</div><div style="color:var(--text2);font-size:11px;">registros</div></div>
       <div style="text-align:right"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--green)">${Object.keys(byDay).length}</div><div style="color:var(--text2);font-size:11px;">días activos</div></div>
     </div>
-    <div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(46,160,67,.35);">
-      <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total semana</div>
-      <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(totalCosto)}</div>
+    <div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;border:1px solid rgba(46,160,67,.35);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total semana (sin ISV)</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(totalCosto)}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+        <div style="color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:1px;">+ ISV 15%</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:600;color:#e3b341">${formatLempira(withIsv(totalCosto))}</div>
+      </div>
     </div>
     <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📊 Resumen semanal — ${formatDate(monday)} al ${formatDate(sunday)}</div>
     ${Object.values(summary).sort((a,b)=>b.total-a.total).map(s=>`
       <div class="hist-item">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span> <span style="color:var(--text2);">(${formatLempira(s.cost)} c/u)</span></div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(s.subtotal))})</span> <span style="color:var(--text2);">(${formatLempira(s.cost)} c/u s/ISV)</span></div>
         </div>
         <div class="hist-qty">${s.total}</div>
       </div>`).join('')}
@@ -949,12 +972,12 @@ function renderHistSemana(){
     }));
     const dayTotal=Object.values(daySummary).reduce((a,s)=>a+s.total,0);
     const dayCosto=Object.values(daySummary).reduce((a,s)=>a+s.subtotal,0);
-    html+=`<div class="hist-day-header"><span>📅 ${formatDate(date)}</span><span><strong>${dayTotal} uds.</strong> · <strong style="color:var(--green)">${formatLempira(dayCosto)}</strong></span></div>`;
+    html+=`<div class="hist-day-header"><span>📅 ${formatDate(date)}</span><span><strong>${dayTotal} uds.</strong> · <strong style="color:var(--green)">${formatLempira(dayCosto)}</strong> <span style="color:#e3b341;font-size:11px;">(+ISV ${formatLempira(withIsv(dayCosto))})</span></span></div>`;
     html+=Object.values(daySummary).sort((a,b)=>b.total-a.total).map(s=>`
       <div class="hist-item" style="margin-bottom:6px;">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span></div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(s.subtotal))})</span></div>
         </div>
         <div class="hist-qty" style="font-size:20px;">${s.total}</div>
       </div>`).join('');
@@ -970,7 +993,7 @@ function renderHistSemana(){
         const sub=c*i.qtyUsed;
         return `
         <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
-          <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div><div style="font-size:11px;color:var(--text2);">${formatLempira(c)} c/u · <strong style="color:var(--green)">${formatLempira(sub)}</strong></div></div>
+          <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div><div style="font-size:11px;color:var(--text2);">${formatLempira(c)} c/u · <strong style="color:var(--green)">${formatLempira(sub)}</strong> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(sub))})</span></div></div>
           <div style="font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;color:var(--accent);">${i.qtyUsed}</div>
         </div>`;
       }).join('');
@@ -978,7 +1001,7 @@ function renderHistSemana(){
         <div class="uso-card-header" onclick="toggleUsoH('${key}')">
           <div class="uso-card-info">
             <div class="uso-card-title">🕐 ${hora} · <span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">${esc(u.user)}</span></div>
-            <div class="uso-card-sub">${u.items.length} art. · <strong style="color:var(--accent)">${total}</strong> uds. · <strong style="color:var(--green)">${formatLempira(subtotalReg)}</strong></div>
+            <div class="uso-card-sub">${u.items.length} art. · <strong style="color:var(--accent)">${total}</strong> uds. · <strong style="color:var(--green)">${formatLempira(subtotalReg)}</strong> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(subtotalReg))})</span></div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
             <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteUsageRecord(${u.id})">🗑️</button>
@@ -1036,16 +1059,22 @@ function renderHistMes(){
       <div style="text-align:center"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--blue)">${usage.length}</div><div style="color:var(--text2);font-size:11px;">registros</div></div>
       <div style="text-align:right"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--green)">${Object.keys(byDay).length}</div><div style="color:var(--text2);font-size:11px;">días activos</div></div>
     </div>
-    <div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(46,160,67,.35);">
-      <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total ${tituloMes}</div>
-      <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(totalCosto)}</div>
+    <div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;border:1px solid rgba(46,160,67,.35);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total ${tituloMes} (sin ISV)</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(totalCosto)}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+        <div style="color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:1px;">+ ISV 15%</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:600;color:#e3b341">${formatLempira(withIsv(totalCosto))}</div>
+      </div>
     </div>
     <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📆 Resumen de ${tituloMes}</div>
     ${Object.values(summary).sort((a,b)=>b.total-a.total).map(s=>`
       <div class="hist-item">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span> <span style="color:var(--text2);">(${formatLempira(s.cost)} c/u)</span></div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(s.subtotal))})</span> <span style="color:var(--text2);">(${formatLempira(s.cost)} c/u s/ISV)</span></div>
         </div>
         <div class="hist-qty">${s.total}</div>
       </div>`).join('')}
@@ -1062,12 +1091,12 @@ function renderHistMes(){
     }));
     const dayTotal=Object.values(daySummary).reduce((a,s)=>a+s.total,0);
     const dayCosto=Object.values(daySummary).reduce((a,s)=>a+s.subtotal,0);
-    html+=`<div class="hist-day-header"><span>📅 ${formatDate(date)}</span><span><strong>${dayTotal} uds.</strong> · <strong style="color:var(--green)">${formatLempira(dayCosto)}</strong></span></div>`;
+    html+=`<div class="hist-day-header"><span>📅 ${formatDate(date)}</span><span><strong>${dayTotal} uds.</strong> · <strong style="color:var(--green)">${formatLempira(dayCosto)}</strong> <span style="color:#e3b341;font-size:11px;">(+ISV ${formatLempira(withIsv(dayCosto))})</span></span></div>`;
     html+=Object.values(daySummary).sort((a,b)=>b.total-a.total).map(s=>`
       <div class="hist-item" style="margin-bottom:6px;">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span></div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(s.subtotal))})</span></div>
         </div>
         <div class="hist-qty" style="font-size:20px;">${s.total}</div>
       </div>`).join('');
@@ -1082,7 +1111,7 @@ function renderHistMes(){
         const sub=c*i.qtyUsed;
         return `
         <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
-          <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div><div style="font-size:11px;color:var(--text2);">${formatLempira(c)} c/u · <strong style="color:var(--green)">${formatLempira(sub)}</strong></div></div>
+          <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div><div style="font-size:11px;color:var(--text2);">${formatLempira(c)} c/u · <strong style="color:var(--green)">${formatLempira(sub)}</strong> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(sub))})</span></div></div>
           <div style="font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;color:var(--accent);">${i.qtyUsed}</div>
         </div>`;
       }).join('');
@@ -1090,7 +1119,7 @@ function renderHistMes(){
         <div class="uso-card-header" onclick="toggleUsoH('${key}')">
           <div class="uso-card-info">
             <div class="uso-card-title">🕐 ${hora} · <span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">${esc(u.user)}</span></div>
-            <div class="uso-card-sub">${u.items.length} art. · <strong style="color:var(--accent)">${total}</strong> uds. · <strong style="color:var(--green)">${formatLempira(subtotalReg)}</strong></div>
+            <div class="uso-card-sub">${u.items.length} art. · <strong style="color:var(--accent)">${total}</strong> uds. · <strong style="color:var(--green)">${formatLempira(subtotalReg)}</strong> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(subtotalReg))})</span></div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
             <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteUsageRecord(${u.id})">🗑️</button>
@@ -1142,13 +1171,13 @@ function exportDaily(){
   const totalCost=rows.reduce((a,r)=>a+r.subtotal,0);
   const wb=XLSX.utils.book_new();
   const wsData=[
-    ['Codigo','Descripcion','Cantidad Utilizado','Costo Unit. (L.)','Subtotal (L.)'],
-    ...rows.map(r=>[r.code,r.name,r.total,r.cost,r.subtotal]),
-    ['','TOTAL',totalUds,'',totalCost],
+    ['Codigo','Descripcion','Cantidad Utilizado','Costo Unit. SIN ISV','Costo Unit. CON ISV','Subtotal SIN ISV','Subtotal CON ISV'],
+    ...rows.map(r=>[r.code,r.name,r.total,r.cost,withIsv(r.cost),r.subtotal,withIsv(r.subtotal)]),
+    ['','TOTAL',totalUds,'','',totalCost,withIsv(totalCost)],
   ];
   const ws=XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols']=[{wch:14},{wch:38},{wch:18},{wch:18},{wch:18}];
-  applyCostoFormat(ws,['D','E']);
+  ws['!cols']=[{wch:14},{wch:38},{wch:14},{wch:18},{wch:18},{wch:18},{wch:18}];
+  applyCostoFormat(ws,['D','E','F','G']);
   XLSX.utils.book_append_sheet(wb,ws,'Reporte Diario');
   XLSX.writeFile(wb,`Reporte_Diario_${date}.xlsx`);
   showToast('📥 Excel descargado');
@@ -1173,12 +1202,12 @@ function exportWeekly(){
   const totalCost=list.reduce((a,r)=>a+r.subtotal,0);
   const wb=XLSX.utils.book_new();
   const ws1=XLSX.utils.aoa_to_sheet([
-    ['Codigo','Descripcion','Cantidad Utilizado','Costo Unit. (L.)','Subtotal (L.)'],
-    ...list.map(s=>[s.code,s.name,s.total,s.cost,s.subtotal]),
-    ['','TOTAL',totalUds,'',totalCost],
+    ['Codigo','Descripcion','Cantidad Utilizado','Costo Unit. SIN ISV','Costo Unit. CON ISV','Subtotal SIN ISV','Subtotal CON ISV'],
+    ...list.map(s=>[s.code,s.name,s.total,s.cost,withIsv(s.cost),s.subtotal,withIsv(s.subtotal)]),
+    ['','TOTAL',totalUds,'','',totalCost,withIsv(totalCost)],
   ]);
-  ws1['!cols']=[{wch:14},{wch:38},{wch:18},{wch:18},{wch:18}];
-  applyCostoFormat(ws1,['D','E']);
+  ws1['!cols']=[{wch:14},{wch:38},{wch:14},{wch:18},{wch:18},{wch:18},{wch:18}];
+  applyCostoFormat(ws1,['D','E','F','G']);
   XLSX.utils.book_append_sheet(wb,ws1,'Resumen Semanal');
   const detRows=[];
   let detTotalUds=0,detTotalCost=0;
@@ -1186,15 +1215,15 @@ function exportWeekly(){
     const c=getCostByCode(i.code);
     const sub=i.qtyUsed*c;
     detTotalUds+=i.qtyUsed;detTotalCost+=sub;
-    detRows.push([u.date,i.code,i.name,i.qtyUsed,c,sub,u.user]);
+    detRows.push([u.date,i.code,i.name,i.qtyUsed,c,withIsv(c),sub,withIsv(sub),u.user]);
   }));
   const ws2=XLSX.utils.aoa_to_sheet([
-    ['Fecha','Codigo','Descripcion','Cantidad Utilizado','Costo Unit. (L.)','Subtotal (L.)','Registrado Por'],
+    ['Fecha','Codigo','Descripcion','Cantidad Utilizado','Costo Unit. SIN ISV','Costo Unit. CON ISV','Subtotal SIN ISV','Subtotal CON ISV','Registrado Por'],
     ...detRows,
-    ['','','TOTAL',detTotalUds,'',detTotalCost,''],
+    ['','','TOTAL',detTotalUds,'','',detTotalCost,withIsv(detTotalCost),''],
   ]);
-  ws2['!cols']=[{wch:12},{wch:14},{wch:38},{wch:18},{wch:18},{wch:18},{wch:18}];
-  applyCostoFormat(ws2,['E','F']);
+  ws2['!cols']=[{wch:12},{wch:14},{wch:38},{wch:14},{wch:18},{wch:18},{wch:18},{wch:18},{wch:18}];
+  applyCostoFormat(ws2,['E','F','G','H']);
   XLSX.utils.book_append_sheet(wb,ws2,'Detalle por Dia');
   XLSX.writeFile(wb,`Reporte_Semanal_${monday}_al_${sunday}.xlsx`);
   showToast('📥 Excel semanal descargado');
@@ -1221,12 +1250,12 @@ function exportMonthly(){
   const totalCost=list.reduce((a,r)=>a+r.subtotal,0);
   const wb=XLSX.utils.book_new();
   const ws1=XLSX.utils.aoa_to_sheet([
-    ['Codigo','Descripcion','Cantidad Utilizado','Costo Unit. (L.)','Subtotal (L.)'],
-    ...list.map(s=>[s.code,s.name,s.total,s.cost,s.subtotal]),
-    ['','TOTAL',totalUds,'',totalCost],
+    ['Codigo','Descripcion','Cantidad Utilizado','Costo Unit. SIN ISV','Costo Unit. CON ISV','Subtotal SIN ISV','Subtotal CON ISV'],
+    ...list.map(s=>[s.code,s.name,s.total,s.cost,withIsv(s.cost),s.subtotal,withIsv(s.subtotal)]),
+    ['','TOTAL',totalUds,'','',totalCost,withIsv(totalCost)],
   ]);
-  ws1['!cols']=[{wch:14},{wch:38},{wch:18},{wch:18},{wch:18}];
-  applyCostoFormat(ws1,['D','E']);
+  ws1['!cols']=[{wch:14},{wch:38},{wch:14},{wch:18},{wch:18},{wch:18},{wch:18}];
+  applyCostoFormat(ws1,['D','E','F','G']);
   XLSX.utils.book_append_sheet(wb,ws1,'Resumen del Mes');
   const detRows=[];
   let detTotalUds=0,detTotalCost=0;
@@ -1234,16 +1263,16 @@ function exportMonthly(){
     const c=getCostByCode(i.code);
     const sub=i.qtyUsed*c;
     detTotalUds+=i.qtyUsed;detTotalCost+=sub;
-    detRows.push([u.date,i.code,i.name,i.qtyUsed,c,sub,u.user]);
+    detRows.push([u.date,i.code,i.name,i.qtyUsed,c,withIsv(c),sub,withIsv(sub),u.user]);
   }));
   detRows.sort((a,b)=>a[0].localeCompare(b[0]));
   const ws2=XLSX.utils.aoa_to_sheet([
-    ['Fecha','Codigo','Descripcion','Cantidad Utilizado','Costo Unit. (L.)','Subtotal (L.)','Registrado Por'],
+    ['Fecha','Codigo','Descripcion','Cantidad Utilizado','Costo Unit. SIN ISV','Costo Unit. CON ISV','Subtotal SIN ISV','Subtotal CON ISV','Registrado Por'],
     ...detRows,
-    ['','','TOTAL',detTotalUds,'',detTotalCost,''],
+    ['','','TOTAL',detTotalUds,'','',detTotalCost,withIsv(detTotalCost),''],
   ]);
-  ws2['!cols']=[{wch:12},{wch:14},{wch:38},{wch:18},{wch:18},{wch:18},{wch:18}];
-  applyCostoFormat(ws2,['E','F']);
+  ws2['!cols']=[{wch:12},{wch:14},{wch:38},{wch:14},{wch:18},{wch:18},{wch:18},{wch:18},{wch:18}];
+  applyCostoFormat(ws2,['E','F','G','H']);
   XLSX.utils.book_append_sheet(wb,ws2,'Detalle por Dia');
   XLSX.writeFile(wb,`Reporte_Mensual_${ym}.xlsx`);
   showToast('📥 Excel mensual descargado');
@@ -1267,36 +1296,39 @@ function exportYearly(){
       byCode[i.code].monthsCost[mi]+=i.qtyUsed*c;
     });
   });
-  const header=['Codigo','Descripcion',...meses,'Total Anual','Costo Unit. (L.)','Subtotal Anual (L.)'];
+  const header=['Codigo','Descripcion',...meses,'Total Anual','Costo Unit. SIN ISV','Costo Unit. CON ISV','Subtotal Anual SIN ISV','Subtotal Anual CON ISV'];
   const rows=Object.values(byCode).map(r=>{
     const total=r.months.reduce((a,b)=>a+b,0);
     const subtotal=r.monthsCost.reduce((a,b)=>a+b,0);
-    return [r.code,r.name,...r.months,total,r.cost,subtotal];
+    return [r.code,r.name,...r.months,total,r.cost,withIsv(r.cost),subtotal,withIsv(subtotal)];
   }).sort((a,b)=>b[14]-a[14]);
-  // Fila de TOTAL al final del resumen anual
+  // Fila de TOTAL al final del resumen anual (indice de col Total Anual = 14)
   const totalsRow=['','TOTAL'];
   for(let mi=0;mi<12;mi++) totalsRow.push(rows.reduce((a,r)=>a+r[2+mi],0));
-  totalsRow.push(rows.reduce((a,r)=>a+r[14],0)); // Total anual uds
-  totalsRow.push(''); // costo unit no aplica
-  totalsRow.push(rows.reduce((a,r)=>a+r[16],0)); // Subtotal anual L.
+  const totUdsAnual=rows.reduce((a,r)=>a+r[14],0);
+  const totSubSinIsv=rows.reduce((a,r)=>a+r[17],0);
+  totalsRow.push(totUdsAnual); // Total anual uds (col 14)
+  totalsRow.push(''); // costo unit sin isv (col 15)
+  totalsRow.push(''); // costo unit con isv (col 16)
+  totalsRow.push(totSubSinIsv); // Subtotal anual sin isv (col 17)
+  totalsRow.push(withIsv(totSubSinIsv)); // Subtotal anual con isv (col 18)
   const wb=XLSX.utils.book_new();
   const ws1=XLSX.utils.aoa_to_sheet([header,...rows,totalsRow]);
-  ws1['!cols']=[{wch:14},{wch:38},...Array(12).fill({wch:10}),{wch:14},{wch:18},{wch:20}];
-  // Columnas O (Costo Unit) y P (Subtotal Anual): formato lempira
-  applyCostoFormat(ws1,['O','P']);
+  ws1['!cols']=[{wch:14},{wch:38},...Array(12).fill({wch:10}),{wch:14},{wch:18},{wch:18},{wch:22},{wch:22}];
+  // Cols con costos: O = Costo Unit Sin ISV, P = Costo Unit Con ISV, Q = Subtotal Sin ISV, R = Subtotal Con ISV
+  applyCostoFormat(ws1,['O','P','Q','R']);
   XLSX.utils.book_append_sheet(wb,ws1,'Resumen Anual');
-  // Totales por mes (uds + costo)
-  const monthTotals=meses.map((n,i)=>[
-    n,
-    rows.reduce((a,r)=>a+r[2+i],0),
-    Object.values(byCode).reduce((a,r)=>a+r.monthsCost[i],0),
-  ]);
+  // Totales por mes (uds + costo sin/con ISV)
+  const monthTotals=meses.map((n,i)=>{
+    const cost=Object.values(byCode).reduce((a,r)=>a+r.monthsCost[i],0);
+    return [n,rows.reduce((a,r)=>a+r[2+i],0),cost,withIsv(cost)];
+  });
   const totUds=monthTotals.reduce((a,r)=>a+r[1],0);
-  const totCost=monthTotals.reduce((a,r)=>a+r[2],0);
-  monthTotals.push(['TOTAL ANUAL',totUds,totCost]);
-  const ws2=XLSX.utils.aoa_to_sheet([['Mes','Cantidad Utilizado','Costo Total (L.)'],...monthTotals]);
-  ws2['!cols']=[{wch:16},{wch:20},{wch:22}];
-  applyCostoFormat(ws2,['C']);
+  const totCostMes=monthTotals.reduce((a,r)=>a+r[2],0);
+  monthTotals.push(['TOTAL ANUAL',totUds,totCostMes,withIsv(totCostMes)]);
+  const ws2=XLSX.utils.aoa_to_sheet([['Mes','Cantidad Utilizado','Costo Total SIN ISV','Costo Total CON ISV'],...monthTotals]);
+  ws2['!cols']=[{wch:16},{wch:20},{wch:22},{wch:22}];
+  applyCostoFormat(ws2,['C','D']);
   XLSX.utils.book_append_sheet(wb,ws2,'Totales por Mes');
   XLSX.writeFile(wb,`Reporte_Anual_${yStr}.xlsx`);
   showToast('📥 Excel anual descargado');
@@ -1419,6 +1451,11 @@ function getSundayOf(mondayStr){
   return d.toISOString().split('T')[0];
 }
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+// Tasa ISV (Impuesto Sobre Ventas) Honduras = 15%. Centralizado aqui por si
+// algun dia cambia. Los costos se guardan SIN ISV en la BD y se aplica este
+// factor al mostrarlos / exportarlos.
+const ISV_RATE=0.15;
+function withIsv(n){return Number(n||0)*(1+ISV_RATE);}
 function formatLempira(n){
   const v=Number(n||0);
   return 'L. '+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
