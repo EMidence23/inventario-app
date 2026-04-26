@@ -86,3 +86,73 @@ class UsageRecordOut(BaseModel):
     date: str
     ts: str
     items: list[UsageItemOut]
+
+
+# ── Instaladores / Herramientas / Cajas ──────────────────────────────
+class InstaladorIn(BaseModel):
+    nombre: str = Field(min_length=1, max_length=120)
+    activo: bool = True
+
+
+class InstaladorOut(BaseModel):
+    id: int
+    nombre: str
+    activo: bool
+
+
+class HerramientaIn(BaseModel):
+    nombre: str = Field(min_length=1, max_length=120)
+    activo: bool = True
+
+
+class HerramientaOut(BaseModel):
+    id: int
+    nombre: str
+    activo: bool
+
+
+class CajaItemIn(BaseModel):
+    herramienta_id: int
+    cantidad_entregada: int = Field(ge=0)
+
+
+class CajaItemOut(BaseModel):
+    id: int
+    herramienta_id: int
+    herramienta_nombre: str
+    cantidad_entregada: int
+    cantidad_devuelta: int
+    estado: str
+
+
+class CajaHerramientaIn(BaseModel):
+    fecha: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    instalador_ids: list[int] = Field(min_length=1)
+    items: list[CajaItemIn] = Field(min_length=1)
+    notas: str = ""
+
+
+class CajaItemReview(BaseModel):
+    id: int
+    cantidad_devuelta: int = Field(ge=0)
+
+
+class CajaRevisionIn(BaseModel):
+    items: list[CajaItemReview]
+    notas: str | None = None
+
+
+class CajaHerramientaOut(BaseModel):
+    id: int
+    fecha: str
+    hora_entrega: str
+    creada_por: str
+    revisada_por: str | None
+    hora_revision: str | None
+    instaladores: list[str]
+    items: list[CajaItemOut]
+    total_entregadas: int
+    total_devueltas: int
+    total_faltantes: int
+    estado: str
+    notas: str

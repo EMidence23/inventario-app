@@ -309,6 +309,33 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
       <div id="userList"></div>
     </div>
 
+    <!-- CAJAS DE HERRAMIENTAS -->
+    <div id="tabCajas" class="tab-view">
+      <div class="hist-tabs">
+        <button class="hist-tab active" id="cjTabCajas" onclick="switchCajaSubTab('cajas')">🧰 CAJAS</button>
+        <button class="hist-tab" id="cjTabInst" onclick="switchCajaSubTab('inst')">👷 INSTALADORES</button>
+        <button class="hist-tab" id="cjTabHerr" onclick="switchCajaSubTab('herr')">🛠 HERRAMIENTAS</button>
+      </div>
+
+      <!-- Lista / crear cajas del dia -->
+      <div class="hist-panel active" id="cjPanelCajas">
+        <button class="btn btn-primary" onclick="openCajaModal()" style="margin-bottom:14px;">＋ Asignar nueva caja</button>
+        <div id="cajasList"></div>
+      </div>
+
+      <!-- Catalogo de instaladores -->
+      <div class="hist-panel" id="cjPanelInst">
+        <button class="btn btn-primary" onclick="openInstModal()" style="margin-bottom:14px;">＋ Agregar Instalador</button>
+        <div id="instList"></div>
+      </div>
+
+      <!-- Catalogo de herramientas -->
+      <div class="hist-panel" id="cjPanelHerr">
+        <button class="btn btn-primary" onclick="openHerrModal()" style="margin-bottom:14px;">＋ Agregar Herramienta</button>
+        <div id="herrList"></div>
+      </div>
+    </div>
+
   </div>
 
   <nav class="bottom-nav">
@@ -323,6 +350,9 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
     </button>
     <button class="nav-item" onclick="switchTab('Historial')" id="nav-Historial">
       <span class="nav-icon">📋</span><span class="nav-label">HISTORIAL</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('Cajas')" id="nav-Cajas">
+      <span class="nav-icon">🧰</span><span class="nav-label">CAJAS</span>
     </button>
     <button class="nav-item" onclick="switchTab('Reportes')" id="nav-Reportes" style="display:none;">
       <span class="nav-icon">📊</span><span class="nav-label">REPORTES</span>
@@ -392,6 +422,86 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
   </div>
 </div>
 
+<!-- MODAL INSTALADOR -->
+<div class="modal-overlay" id="instModal">
+  <div class="modal">
+    <div class="modal-title" id="instModalTitle">Agregar Instalador</div>
+    <div class="form-group">
+      <label>Nombre completo</label>
+      <input type="text" id="instName" placeholder="Ej: Carlos López">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('instModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveInstalador()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL HERRAMIENTA -->
+<div class="modal-overlay" id="herrModal">
+  <div class="modal">
+    <div class="modal-title" id="herrModalTitle">Agregar Herramienta</div>
+    <div class="form-group">
+      <label>Nombre de la herramienta</label>
+      <input type="text" id="herrName" placeholder="Ej: Taladro Bosch">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('herrModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveHerramienta()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NUEVA CAJA -->
+<div class="modal-overlay" id="cajaModal">
+  <div class="modal" style="max-height:88vh;overflow-y:auto;">
+    <div class="modal-title">Asignar Caja de Herramientas</div>
+    <div class="form-group">
+      <label>Fecha</label>
+      <input type="date" id="cjFecha">
+    </div>
+    <div class="form-group">
+      <label>👷 Instaladores que llevan la caja</label>
+      <div id="cjInstPicker" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--surface2);"></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px;">Selecciona uno o varios. Si falta alguien, agrégalo en la pestaña 👷 INSTALADORES.</div>
+    </div>
+    <div class="form-group">
+      <label>🧰 Herramientas y cantidades</label>
+      <div id="cjHerrPicker" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--surface2);"></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px;">Pon la cantidad que se entrega. Deja 0 lo que no va.</div>
+    </div>
+    <div class="form-group">
+      <label>Notas (opcional)</label>
+      <input type="text" id="cjNotas" placeholder="Ej: proyecto Los Próceres, turno 8-5">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('cajaModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCaja()">Asignar Caja</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL REVISAR CAJA -->
+<div class="modal-overlay" id="revisarModal">
+  <div class="modal" style="max-height:88vh;overflow-y:auto;">
+    <div class="modal-title" id="rvTitle">Revisar Caja</div>
+    <div style="color:var(--text2);font-size:12px;margin-bottom:10px;" id="rvSub"></div>
+    <div class="form-group">
+      <label>Herramientas devueltas</label>
+      <div id="rvItems"></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:6px;">Ingresa cuántas regresaron. Si devolvieron todas, deja la misma cantidad. Si faltó, pon menos.</div>
+    </div>
+    <div class="form-group">
+      <label>Notas de la revisión (opcional)</label>
+      <input type="text" id="rvNotas" placeholder="Ej: se perdió 1 broca en la obra">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('revisarModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveRevision()">Guardar Revisión</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <div class="loader-overlay" id="loaderOverlay"><div class="loader-spinner"></div>Cargando…</div>
 
@@ -427,13 +537,19 @@ async function api(path,opts={}){
 function showLoader(on){document.getElementById('loaderOverlay').classList.toggle('show',!!on);}
 
 // ── IN-MEMORY CACHE ──────────────────────────────────────
-const CACHE={inventory:[],usage:[],users:[]};
+const CACHE={inventory:[],usage:[],users:[],instaladores:[],herramientas:[],cajas:[]};
 async function loadInventory(){CACHE.inventory=await api('/api/inventory');return CACHE.inventory;}
 async function loadUsage(){CACHE.usage=await api('/api/usage');return CACHE.usage;}
 async function loadUsers(){CACHE.users=await api('/api/users');return CACHE.users;}
+async function loadInstaladores(){CACHE.instaladores=await api('/api/instaladores');return CACHE.instaladores;}
+async function loadHerramientas(){CACHE.herramientas=await api('/api/herramientas');return CACHE.herramientas;}
+async function loadCajas(){CACHE.cajas=await api('/api/cajas');return CACHE.cajas;}
 function getInventory(){return CACHE.inventory||[];}
 function getUsage(){return CACHE.usage||[];}
 function getUsers(){return CACHE.users||[];}
+function getInstaladores(){return CACHE.instaladores||[];}
+function getHerramientas(){return CACHE.herramientas||[];}
+function getCajas(){return CACHE.cajas||[];}
 
 // ── AUTH ─────────────────────────────────────────────────
 let currentUser=null;
@@ -464,7 +580,7 @@ async function doLogin(){
 function doLogout(){
   setToken(null);
   currentUser=null;
-  CACHE.inventory=[];CACHE.usage=[];CACHE.users=[];
+  CACHE.inventory=[];CACHE.usage=[];CACHE.users=[];CACHE.instaladores=[];CACHE.herramientas=[];CACHE.cajas=[];
   document.getElementById('appScreen').classList.remove('active');
   document.getElementById('loginScreen').classList.add('active');
   // Reset tab DOM without triggering data fetches (no currentUser = no auth).
@@ -534,6 +650,7 @@ async function switchTab(tab){
     else if(tab==='Inventario'){await loadInventory();renderInventory();}
     else if(tab==='Uso'){await loadInventory();renderUsageList();}
     else if(tab==='Historial'){await loadUsage();renderHistorial();}
+    else if(tab==='Cajas'){await Promise.all([loadInstaladores(),loadHerramientas(),loadCajas()]);renderCajasTab();}
     else if(tab==='Usuarios'){await loadUsers();renderUsers();}
   }catch(err){
     if(err.status===401){doLogout();return;}
@@ -1432,6 +1549,322 @@ async function deleteUser(id){
   }finally{
     showLoader(false);
   }
+}
+
+// ── CAJAS DE HERRAMIENTAS ────────────────────────────────
+let editingInstId=null;
+let editingHerrId=null;
+let revisarCajaId=null;
+
+function switchCajaSubTab(which){
+  const tabs={'cajas':['cjTabCajas','cjPanelCajas'],'inst':['cjTabInst','cjPanelInst'],'herr':['cjTabHerr','cjPanelHerr']};
+  Object.values(tabs).forEach(([t,p])=>{
+    document.getElementById(t).classList.remove('active');
+    document.getElementById(p).classList.remove('active');
+  });
+  const [t,p]=tabs[which];
+  document.getElementById(t).classList.add('active');
+  document.getElementById(p).classList.add('active');
+  if(which==='cajas') renderCajasList();
+  else if(which==='inst') renderInstList();
+  else if(which==='herr') renderHerrList();
+}
+
+function renderCajasTab(){
+  renderCajasList();
+  renderInstList();
+  renderHerrList();
+}
+
+function cajaFormatHora(iso){
+  if(!iso) return '--:--';
+  try{
+    let s=new Date(iso).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
+    return s.replace('AM','a.m.').replace('PM','p.m.');
+  }catch{return '--:--';}
+}
+function cajaFormatFechaHora(iso){
+  if(!iso) return '';
+  try{
+    const d=new Date(iso);
+    return formatDate(d.toISOString().split('T')[0])+' '+cajaFormatHora(iso);
+  }catch{return '';}
+}
+
+function renderCajasList(){
+  const list=getCajas();
+  const cont=document.getElementById('cajasList');
+  if(!list.length){
+    cont.innerHTML='<div style="color:var(--text2);text-align:center;padding:30px;">Aún no hay cajas asignadas. Pulsa "＋ Asignar nueva caja".</div>';
+    return;
+  }
+  // Agrupar por fecha.
+  const byDate={};
+  list.forEach(c=>{(byDate[c.fecha]=byDate[c.fecha]||[]).push(c);});
+  const dates=Object.keys(byDate).sort().reverse();
+  let html='';
+  dates.forEach(fecha=>{
+    html+=`<div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;margin:10px 0 6px;font-family:'Rajdhani',sans-serif;font-weight:600;">📅 ${formatDate(fecha)}</div>`;
+    byDate[fecha].forEach(c=>{html+=renderCajaCard(c);});
+  });
+  cont.innerHTML=html;
+}
+
+function renderCajaCard(c){
+  const pendiente=c.estado==='pendiente';
+  const completa=c.estado==='completa';
+  const faltante=c.estado==='faltante';
+  let badgeColor,badgeBg,badgeBorder,badgeText;
+  if(pendiente){badgeColor='#d29922';badgeBg='rgba(210,153,34,.15)';badgeBorder='rgba(210,153,34,.35)';badgeText='⏳ Pendiente de revisar';}
+  else if(completa){badgeColor='#56d364';badgeBg='rgba(46,160,67,.15)';badgeBorder='rgba(46,160,67,.35)';badgeText='✓ Caja completa';}
+  else {badgeColor='#f85149';badgeBg='rgba(248,81,73,.15)';badgeBorder='rgba(248,81,73,.35)';badgeText=`⚠️ Faltante — ${c.total_devueltas}/${c.total_entregadas} devueltas`;}
+  const instNames=(c.instaladores||[]).join(', ')||'(sin instaladores)';
+  const itemsHtml=(c.items||[]).map(it=>{
+    let icon,estadoTxt,estadoColor;
+    if(it.estado==='pendiente'){icon='⏳';estadoTxt='Pendiente';estadoColor='#d29922';}
+    else if(it.estado==='devuelta'){icon='☑';estadoTxt='↩ Devuelta';estadoColor='#56d364';}
+    else {icon='☐';estadoTxt=`❌ FALTANTE ${it.cantidad_entregada-it.cantidad_devuelta}`;estadoColor='#f85149';}
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed var(--border);">
+      <div style="flex:1;"><span style="color:${estadoColor};font-weight:700;margin-right:8px;font-size:16px;">${icon}</span><span style="color:var(--text2);font-weight:700;margin-right:6px;">${it.cantidad_entregada}</span><span>${esc(it.herramienta_nombre)}</span></div>
+      <div style="color:${estadoColor};font-size:12px;font-weight:600;white-space:nowrap;">${estadoTxt}</div>
+    </div>`;
+  }).join('');
+  const revisadaHtml=c.revisada_por
+    ?`<div style="color:var(--text2);font-size:11px;margin-top:8px;">✔ Revisado por: <b>${esc(c.revisada_por)}</b> — ${cajaFormatFechaHora(c.hora_revision)}</div>`
+    :'';
+  const notasHtml=c.notas?`<div style="color:var(--text2);font-size:11px;margin-top:4px;font-style:italic;">📝 ${esc(c.notas)}</div>`:'';
+  const actions=pendiente
+    ? `<button class="btn btn-green" onclick="openRevisarModal(${c.id})">👁 Revisar al regreso</button>
+       <button class="btn btn-secondary" onclick="deleteCaja(${c.id})">🗑 Borrar</button>`
+    : `<button class="btn btn-secondary" onclick="openRevisarModal(${c.id})">✏️ Corregir revisión</button>
+       <button class="btn btn-secondary" onclick="deleteCaja(${c.id})">🗑 Borrar</button>`;
+  return `<div class="stat-card" style="padding:14px;margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px;">
+      <div style="flex:1;">
+        <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:15px;">👷 ${esc(instNames)}</div>
+        <div style="color:var(--text2);font-size:12px;margin-top:2px;">🧰 Caja entregada a las <b>${cajaFormatHora(c.hora_entrega)}</b></div>
+      </div>
+    </div>
+    <div style="display:inline-block;padding:4px 10px;border-radius:999px;background:${badgeBg};color:${badgeColor};border:1px solid ${badgeBorder};font-size:11px;font-weight:700;letter-spacing:.5px;margin-bottom:10px;">${badgeText}</div>
+    <div style="margin:8px 0;">${itemsHtml}</div>
+    <div style="color:var(--text2);font-size:11px;margin-top:8px;">📥 Creada por: <b>${esc(c.creada_por||'--')}</b> — ${cajaFormatFechaHora(c.hora_entrega)}</div>
+    ${revisadaHtml}
+    ${notasHtml}
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">${actions}</div>
+  </div>`;
+}
+
+function renderInstList(){
+  const list=getInstaladores();
+  const cont=document.getElementById('instList');
+  if(!list.length){
+    cont.innerHTML='<div style="color:var(--text2);text-align:center;padding:30px;">Sin instaladores aún. Agrega el primero con "＋ Agregar Instalador".</div>';
+    return;
+  }
+  cont.innerHTML=list.map(i=>`<div class="stat-card" style="padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+    <div style="flex:1;">
+      <div style="font-weight:700;">👷 ${esc(i.nombre)}</div>
+      <div style="color:var(--text2);font-size:11px;">${i.activo?'Activo':'Inactivo'}</div>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button class="btn btn-secondary" onclick="openInstModal(${i.id})">✏️</button>
+      <button class="btn btn-secondary" onclick="deleteInstalador(${i.id})">🗑</button>
+    </div>
+  </div>`).join('');
+}
+
+function renderHerrList(){
+  const list=getHerramientas();
+  const cont=document.getElementById('herrList');
+  if(!list.length){
+    cont.innerHTML='<div style="color:var(--text2);text-align:center;padding:30px;">Sin herramientas aún. Agrega la primera con "＋ Agregar Herramienta".</div>';
+    return;
+  }
+  cont.innerHTML=list.map(h=>`<div class="stat-card" style="padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+    <div style="flex:1;">
+      <div style="font-weight:700;">🛠 ${esc(h.nombre)}</div>
+      <div style="color:var(--text2);font-size:11px;">${h.activo?'Activa':'Inactiva'}</div>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button class="btn btn-secondary" onclick="openHerrModal(${h.id})">✏️</button>
+      <button class="btn btn-secondary" onclick="deleteHerramienta(${h.id})">🗑</button>
+    </div>
+  </div>`).join('');
+}
+
+// ── Instaladores CRUD ──
+function openInstModal(id){
+  editingInstId=id||null;
+  document.getElementById('instModalTitle').textContent=id?'Editar Instalador':'Agregar Instalador';
+  document.getElementById('instName').value='';
+  if(id){
+    const it=getInstaladores().find(i=>i.id===id);
+    if(it) document.getElementById('instName').value=it.nombre;
+  }
+  openModal('instModal');
+}
+async function saveInstalador(){
+  const nombre=document.getElementById('instName').value.trim();
+  if(!nombre){showToast('El nombre es obligatorio',true);return;}
+  try{
+    showLoader(true);
+    if(editingInstId){
+      await api('/api/instaladores/'+editingInstId,{method:'PUT',body:JSON.stringify({nombre,activo:true})});
+      showToast('✅ Instalador actualizado');
+    }else{
+      await api('/api/instaladores',{method:'POST',body:JSON.stringify({nombre,activo:true})});
+      showToast('✅ Instalador agregado');
+    }
+    await loadInstaladores();
+    renderInstList();
+    closeModal('instModal');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+async function deleteInstalador(id){
+  if(!confirm('¿Eliminar este instalador?')) return;
+  try{
+    showLoader(true);
+    await api('/api/instaladores/'+id,{method:'DELETE'});
+    await loadInstaladores();
+    renderInstList();
+    showToast('🗑️ Instalador eliminado');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+
+// ── Herramientas CRUD ──
+function openHerrModal(id){
+  editingHerrId=id||null;
+  document.getElementById('herrModalTitle').textContent=id?'Editar Herramienta':'Agregar Herramienta';
+  document.getElementById('herrName').value='';
+  if(id){
+    const it=getHerramientas().find(h=>h.id===id);
+    if(it) document.getElementById('herrName').value=it.nombre;
+  }
+  openModal('herrModal');
+}
+async function saveHerramienta(){
+  const nombre=document.getElementById('herrName').value.trim();
+  if(!nombre){showToast('El nombre es obligatorio',true);return;}
+  try{
+    showLoader(true);
+    if(editingHerrId){
+      await api('/api/herramientas/'+editingHerrId,{method:'PUT',body:JSON.stringify({nombre,activo:true})});
+      showToast('✅ Herramienta actualizada');
+    }else{
+      await api('/api/herramientas',{method:'POST',body:JSON.stringify({nombre,activo:true})});
+      showToast('✅ Herramienta agregada');
+    }
+    await loadHerramientas();
+    renderHerrList();
+    closeModal('herrModal');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+async function deleteHerramienta(id){
+  if(!confirm('¿Eliminar esta herramienta?')) return;
+  try{
+    showLoader(true);
+    await api('/api/herramientas/'+id,{method:'DELETE'});
+    await loadHerramientas();
+    renderHerrList();
+    showToast('🗑️ Herramienta eliminada');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+
+// ── Nueva Caja ──
+async function openCajaModal(){
+  const inst=getInstaladores().filter(i=>i.activo);
+  const herr=getHerramientas().filter(h=>h.activo);
+  if(!inst.length){showToast('Primero agrega al menos un instalador',true);return;}
+  if(!herr.length){showToast('Primero agrega al menos una herramienta',true);return;}
+  document.getElementById('cjFecha').value=todayStr();
+  document.getElementById('cjNotas').value='';
+  const instBox=document.getElementById('cjInstPicker');
+  instBox.innerHTML=inst.map(i=>`<label style="display:flex;align-items:center;gap:8px;padding:4px 0;">
+    <input type="checkbox" class="cj-inst-chk" value="${i.id}"> 
+    <span>👷 ${esc(i.nombre)}</span>
+  </label>`).join('');
+  const herrBox=document.getElementById('cjHerrPicker');
+  herrBox.innerHTML=herr.map(h=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed var(--border);">
+    <div style="flex:1;">🛠 ${esc(h.nombre)}</div>
+    <input type="number" min="0" step="1" value="0" class="cj-herr-qty" data-id="${h.id}" style="width:68px;padding:4px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);text-align:center;">
+  </div>`).join('');
+  openModal('cajaModal');
+}
+async function saveCaja(){
+  const fecha=document.getElementById('cjFecha').value;
+  const notas=document.getElementById('cjNotas').value.trim();
+  const instIds=[...document.querySelectorAll('.cj-inst-chk:checked')].map(el=>Number(el.value));
+  if(!instIds.length){showToast('Selecciona al menos un instalador',true);return;}
+  const items=[...document.querySelectorAll('.cj-herr-qty')]
+    .map(el=>({herramienta_id:Number(el.dataset.id),cantidad_entregada:Number(el.value||0)}))
+    .filter(it=>it.cantidad_entregada>0);
+  if(!items.length){showToast('Pon al menos una herramienta con cantidad > 0',true);return;}
+  if(!fecha){showToast('Selecciona la fecha',true);return;}
+  try{
+    showLoader(true);
+    await api('/api/cajas',{method:'POST',body:JSON.stringify({fecha,instalador_ids:instIds,items,notas})});
+    await loadCajas();
+    renderCajasList();
+    closeModal('cajaModal');
+    showToast('✅ Caja asignada');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+
+// ── Revisar Caja ──
+function openRevisarModal(cajaId){
+  const caja=getCajas().find(c=>c.id===cajaId);
+  if(!caja){showToast('Caja no encontrada',true);return;}
+  revisarCajaId=cajaId;
+  document.getElementById('rvTitle').textContent=`Revisar caja del ${formatDate(caja.fecha)}`;
+  document.getElementById('rvSub').innerHTML=`👷 ${esc((caja.instaladores||[]).join(', '))}<br>🧰 Entregada a las <b>${cajaFormatHora(caja.hora_entrega)}</b>`;
+  document.getElementById('rvNotas').value=caja.notas||'';
+  const itemsHtml=(caja.items||[]).map(it=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed var(--border);">
+    <div style="flex:1;">
+      <div style="font-weight:700;">🛠 ${esc(it.herramienta_nombre)}</div>
+      <div style="color:var(--text2);font-size:11px;">Entregadas: <b>${it.cantidad_entregada}</b></div>
+    </div>
+    <input type="number" min="0" max="${it.cantidad_entregada}" step="1" value="${it.cantidad_devuelta||it.cantidad_entregada}" class="rv-qty" data-id="${it.id}" data-max="${it.cantidad_entregada}" style="width:72px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);text-align:center;">
+  </div>`).join('');
+  document.getElementById('rvItems').innerHTML=itemsHtml;
+  openModal('revisarModal');
+}
+async function saveRevision(){
+  if(!revisarCajaId) return;
+  const notas=document.getElementById('rvNotas').value.trim();
+  const items=[...document.querySelectorAll('.rv-qty')].map(el=>{
+    const max=Number(el.dataset.max||0);
+    let v=Number(el.value||0);
+    if(v<0) v=0;
+    if(v>max) v=max;
+    return {id:Number(el.dataset.id),cantidad_devuelta:v};
+  });
+  try{
+    showLoader(true);
+    await api(`/api/cajas/${revisarCajaId}/revisar`,{method:'POST',body:JSON.stringify({items,notas})});
+    await loadCajas();
+    renderCajasList();
+    closeModal('revisarModal');
+    revisarCajaId=null;
+    showToast('✅ Revisión guardada');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+
+async function deleteCaja(id){
+  if(!confirm('¿Eliminar esta caja? Esto borra también la revisión y los items.')) return;
+  try{
+    showLoader(true);
+    await api('/api/cajas/'+id,{method:'DELETE'});
+    await loadCajas();
+    renderCajasList();
+    showToast('🗑️ Caja eliminada');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
 }
 
 // ── UTILS ─────────────────────────────────────────────────

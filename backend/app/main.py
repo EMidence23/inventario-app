@@ -13,6 +13,7 @@ from .config import settings
 from .db import Base, SessionLocal, engine
 from .models import InventoryItem, User
 from .routes import auth as auth_routes
+from .routes import cajas as cajas_routes
 from .routes import inventory as inventory_routes
 from .routes import usage as usage_routes
 from .routes import users as users_routes
@@ -152,6 +153,7 @@ def create_app() -> FastAPI:
     app.include_router(users_routes.router)
     app.include_router(inventory_routes.router)
     app.include_router(usage_routes.router)
+    app.include_router(cajas_routes.router)
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
