@@ -621,8 +621,8 @@ function renderInventory(){
     const c=Number(i.cost||0);
     const cIsv=withIsv(c);
     const costoHtml=isAdmin?`
-      <div class="stock-badge stock-ok" style="margin-left:6px;background:rgba(56,139,253,.15);color:#79b8ff;border-color:rgba(56,139,253,.35);" title="Sin ISV">💰 ${formatLempira(c)}</div>
-      <div class="stock-badge stock-ok" style="margin-left:4px;background:rgba(187,128,9,.15);color:#e3b341;border-color:rgba(187,128,9,.35);" title="Con ISV 15%">+ISV ${formatLempira(cIsv)}</div>`:'';
+      <div class="stock-badge stock-ok" style="margin-left:6px;background:rgba(46,160,67,.15);color:#56d364;border-color:rgba(46,160,67,.35);" title="Con ISV 15%">💰 ${formatLempira(cIsv)}</div>
+      <div class="stock-badge stock-ok" style="margin-left:4px;background:rgba(56,139,253,.15);color:#79b8ff;border-color:rgba(56,139,253,.35);" title="Sin ISV">s/ISV ${formatLempira(c)}</div>`:'';
     return `
     <div class="item-card">
       <div class="item-info">
@@ -816,7 +816,7 @@ function renderHistHoy(){
     const detalle=u.items.map(i=>{
       const c=getCostByCode(i.code);
       const sub=c*i.qtyUsed;
-      const costoLine=isAdmin?`<div style="font-size:11px;color:var(--text2);">${formatLempira(c)} c/u · <strong style="color:var(--green)">${formatLempira(sub)}</strong> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(sub))})</span></div>`:'';
+      const costoLine=isAdmin?`<div style="font-size:11px;color:var(--text2);">${formatLempira(withIsv(c))} c/u · <strong style="color:var(--green)">${formatLempira(withIsv(sub))}</strong> <span style="color:#79b8ff">(s/ISV ${formatLempira(sub)})</span></div>`:'';
       return `
       <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
         <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div>${costoLine}</div>
@@ -828,7 +828,7 @@ function renderHistHoy(){
       <div class="uso-card-header" onclick="toggleUsoH('rh-${idx}')">
         <div class="uso-card-info">
           <div class="uso-card-title">🕐 ${hora} &nbsp;<span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">por ${esc(u.user)}</span></div>
-          <div class="uso-card-sub">${u.items.length} artículo(s) · <strong style="color:var(--accent)">${total}</strong> unidades${isAdmin?` · <strong style="color:var(--green)">${formatLempira(subtotalReg)}</strong> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(subtotalReg))})</span>`:''}</div>
+          <div class="uso-card-sub">${u.items.length} artículo(s) · <strong style="color:var(--accent)">${total}</strong> unidades${isAdmin?` · <strong style="color:var(--green)">${formatLempira(withIsv(subtotalReg))}</strong> <span style="color:#79b8ff">(s/ISV ${formatLempira(subtotalReg)})</span>`:''}</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
           ${isAdmin?`<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteUsageRecord(${u.id})">🗑️</button>`:''}
@@ -845,12 +845,12 @@ function renderHistHoy(){
   const costoBox=isAdmin?`
     <div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;border:1px solid rgba(46,160,67,.35);">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total del día (sin ISV)</div>
-        <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(totalCosto)}</div>
+        <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total del día (con ISV 15%)</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(withIsv(totalCosto))}</div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
-        <div style="color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:1px;">+ ISV 15%</div>
-        <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:600;color:#e3b341">${formatLempira(withIsv(totalCosto))}</div>
+        <div style="color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:1px;">Subtotal sin ISV</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:600;color:#79b8ff">${formatLempira(totalCosto)}</div>
       </div>
     </div>`:'';
   div.innerHTML=`
@@ -865,7 +865,7 @@ function renderHistHoy(){
       <div class="hist-item">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)}${isAdmin?` · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(s.subtotal))})</span> <span style="color:var(--text2);">(${formatLempira(s.cost)} c/u s/ISV)</span>`:''}</div>
+          <div class="item-code">${esc(s.code)}${isAdmin?` · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.cost))} c/u c/ISV)</span>`:''}</div>
         </div>
         <div class="hist-qty">${s.total}</div>
       </div>`).join('')}
@@ -942,12 +942,12 @@ function renderHistSemana(){
     </div>
     <div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;border:1px solid rgba(46,160,67,.35);">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total semana (sin ISV)</div>
-        <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(totalCosto)}</div>
+        <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total semana (con ISV 15%)</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(withIsv(totalCosto))}</div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
-        <div style="color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:1px;">+ ISV 15%</div>
-        <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:600;color:#e3b341">${formatLempira(withIsv(totalCosto))}</div>
+        <div style="color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:1px;">Subtotal sin ISV</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:600;color:#79b8ff">${formatLempira(totalCosto)}</div>
       </div>
     </div>
     <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📊 Resumen semanal — ${formatDate(monday)} al ${formatDate(sunday)}</div>
@@ -955,7 +955,7 @@ function renderHistSemana(){
       <div class="hist-item">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(s.subtotal))})</span> <span style="color:var(--text2);">(${formatLempira(s.cost)} c/u s/ISV)</span></div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.cost))} c/u c/ISV)</span></div>
         </div>
         <div class="hist-qty">${s.total}</div>
       </div>`).join('')}
@@ -972,12 +972,12 @@ function renderHistSemana(){
     }));
     const dayTotal=Object.values(daySummary).reduce((a,s)=>a+s.total,0);
     const dayCosto=Object.values(daySummary).reduce((a,s)=>a+s.subtotal,0);
-    html+=`<div class="hist-day-header"><span>📅 ${formatDate(date)}</span><span><strong>${dayTotal} uds.</strong> · <strong style="color:var(--green)">${formatLempira(dayCosto)}</strong> <span style="color:#e3b341;font-size:11px;">(+ISV ${formatLempira(withIsv(dayCosto))})</span></span></div>`;
+    html+=`<div class="hist-day-header"><span>📅 ${formatDate(date)}</span><span><strong>${dayTotal} uds.</strong> · <strong style="color:var(--green)">${formatLempira(withIsv(dayCosto))}</strong> <span style="color:#79b8ff;font-size:11px;">(s/ISV ${formatLempira(dayCosto)})</span></span></div>`;
     html+=Object.values(daySummary).sort((a,b)=>b.total-a.total).map(s=>`
       <div class="hist-item" style="margin-bottom:6px;">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(s.subtotal))})</span></div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span></div>
         </div>
         <div class="hist-qty" style="font-size:20px;">${s.total}</div>
       </div>`).join('');
@@ -993,7 +993,7 @@ function renderHistSemana(){
         const sub=c*i.qtyUsed;
         return `
         <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
-          <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div><div style="font-size:11px;color:var(--text2);">${formatLempira(c)} c/u · <strong style="color:var(--green)">${formatLempira(sub)}</strong> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(sub))})</span></div></div>
+          <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div><div style="font-size:11px;color:var(--text2);">${formatLempira(withIsv(c))} c/u · <strong style="color:var(--green)">${formatLempira(withIsv(sub))}</strong> <span style="color:#79b8ff">(s/ISV ${formatLempira(sub)})</span></div></div>
           <div style="font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;color:var(--accent);">${i.qtyUsed}</div>
         </div>`;
       }).join('');
@@ -1001,7 +1001,7 @@ function renderHistSemana(){
         <div class="uso-card-header" onclick="toggleUsoH('${key}')">
           <div class="uso-card-info">
             <div class="uso-card-title">🕐 ${hora} · <span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">${esc(u.user)}</span></div>
-            <div class="uso-card-sub">${u.items.length} art. · <strong style="color:var(--accent)">${total}</strong> uds. · <strong style="color:var(--green)">${formatLempira(subtotalReg)}</strong> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(subtotalReg))})</span></div>
+            <div class="uso-card-sub">${u.items.length} art. · <strong style="color:var(--accent)">${total}</strong> uds. · <strong style="color:var(--green)">${formatLempira(withIsv(subtotalReg))}</strong> <span style="color:#79b8ff">(s/ISV ${formatLempira(subtotalReg)})</span></div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
             <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteUsageRecord(${u.id})">🗑️</button>
@@ -1061,12 +1061,12 @@ function renderHistMes(){
     </div>
     <div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;border:1px solid rgba(46,160,67,.35);">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total ${tituloMes} (sin ISV)</div>
-        <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(totalCosto)}</div>
+        <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total ${tituloMes} (con ISV 15%)</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(withIsv(totalCosto))}</div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
-        <div style="color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:1px;">+ ISV 15%</div>
-        <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:600;color:#e3b341">${formatLempira(withIsv(totalCosto))}</div>
+        <div style="color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:1px;">Subtotal sin ISV</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:600;color:#79b8ff">${formatLempira(totalCosto)}</div>
       </div>
     </div>
     <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📆 Resumen de ${tituloMes}</div>
@@ -1074,7 +1074,7 @@ function renderHistMes(){
       <div class="hist-item">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(s.subtotal))})</span> <span style="color:var(--text2);">(${formatLempira(s.cost)} c/u s/ISV)</span></div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.cost))} c/u c/ISV)</span></div>
         </div>
         <div class="hist-qty">${s.total}</div>
       </div>`).join('')}
@@ -1091,12 +1091,12 @@ function renderHistMes(){
     }));
     const dayTotal=Object.values(daySummary).reduce((a,s)=>a+s.total,0);
     const dayCosto=Object.values(daySummary).reduce((a,s)=>a+s.subtotal,0);
-    html+=`<div class="hist-day-header"><span>📅 ${formatDate(date)}</span><span><strong>${dayTotal} uds.</strong> · <strong style="color:var(--green)">${formatLempira(dayCosto)}</strong> <span style="color:#e3b341;font-size:11px;">(+ISV ${formatLempira(withIsv(dayCosto))})</span></span></div>`;
+    html+=`<div class="hist-day-header"><span>📅 ${formatDate(date)}</span><span><strong>${dayTotal} uds.</strong> · <strong style="color:var(--green)">${formatLempira(withIsv(dayCosto))}</strong> <span style="color:#79b8ff;font-size:11px;">(s/ISV ${formatLempira(dayCosto)})</span></span></div>`;
     html+=Object.values(daySummary).sort((a,b)=>b.total-a.total).map(s=>`
       <div class="hist-item" style="margin-bottom:6px;">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(s.subtotal)}</span> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(s.subtotal))})</span></div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span></div>
         </div>
         <div class="hist-qty" style="font-size:20px;">${s.total}</div>
       </div>`).join('');
@@ -1111,7 +1111,7 @@ function renderHistMes(){
         const sub=c*i.qtyUsed;
         return `
         <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
-          <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div><div style="font-size:11px;color:var(--text2);">${formatLempira(c)} c/u · <strong style="color:var(--green)">${formatLempira(sub)}</strong> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(sub))})</span></div></div>
+          <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div><div style="font-size:11px;color:var(--text2);">${formatLempira(withIsv(c))} c/u · <strong style="color:var(--green)">${formatLempira(withIsv(sub))}</strong> <span style="color:#79b8ff">(s/ISV ${formatLempira(sub)})</span></div></div>
           <div style="font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;color:var(--accent);">${i.qtyUsed}</div>
         </div>`;
       }).join('');
@@ -1119,7 +1119,7 @@ function renderHistMes(){
         <div class="uso-card-header" onclick="toggleUsoH('${key}')">
           <div class="uso-card-info">
             <div class="uso-card-title">🕐 ${hora} · <span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">${esc(u.user)}</span></div>
-            <div class="uso-card-sub">${u.items.length} art. · <strong style="color:var(--accent)">${total}</strong> uds. · <strong style="color:var(--green)">${formatLempira(subtotalReg)}</strong> <span style="color:#e3b341">(+ISV ${formatLempira(withIsv(subtotalReg))})</span></div>
+            <div class="uso-card-sub">${u.items.length} art. · <strong style="color:var(--accent)">${total}</strong> uds. · <strong style="color:var(--green)">${formatLempira(withIsv(subtotalReg))}</strong> <span style="color:#79b8ff">(s/ISV ${formatLempira(subtotalReg)})</span></div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
             <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteUsageRecord(${u.id})">🗑️</button>
