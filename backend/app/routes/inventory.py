@@ -132,21 +132,35 @@ def bulk_update(
       vacia, NO se toca el campo del producto.
     - El costo viene CON ISV y se guarda SIN ISV (cost = cost_with_isv / (1+isv_rate)).
     """
+    import re
+
+    def _norm_code(s: str) -> str:
+        """Normaliza un codigo para matching tolerante:
+        - quita espacios al inicio/final
+        - colapsa espacios internos (multiples, tabs) a nada
+        - mayusculas.
+        Esto permite que 'NB-ER04- TL600' (con espacio) matchee con
+        'NB-ER04-TL600' (sin espacio) en la BD, y maneja tildes/mayusculas.
+        """
+        return re.sub(r"\s+", "", (s or "").strip()).upper()
+
     results: list[InventoryBulkResultRow] = []
     would_update = 0
     not_found = 0
     no_changes = 0
     invalid = 0
 
-    # Pre-cargar productos por code para evitar N queries.
-    codes = list({r.code.strip() for r in payload.rows if r.code and r.code.strip()})
-    items_by_code = {
-        it.code: it
-        for it in db.query(InventoryItem).filter(InventoryItem.code.in_(codes)).all()
-    }
+    # Pre-cargar TODOS los productos una sola vez y construir un indice por
+    # codigo normalizado para hacer matching tolerante a espacios y case.
+    all_items = db.query(InventoryItem).all()
+    items_by_norm: dict[str, InventoryItem] = {}
+    for it in all_items:
+        key = _norm_code(it.code or "")
+        if key and key not in items_by_norm:
+            items_by_norm[key] = it
 
     isv_divisor = 1.0 + (payload.isv_rate or 0.0)
-    seen_codes: set[str] = set()
+    seen_norm: set[str] = set()
 
     for row in payload.rows:
         code = (row.code or "").strip()
@@ -161,7 +175,8 @@ def bulk_update(
                 )
             )
             continue
-        if code in seen_codes:
+        norm = _norm_code(code)
+        if norm in seen_norm:
             invalid += 1
             results.append(
                 InventoryBulkResultRow(
@@ -172,9 +187,9 @@ def bulk_update(
                 )
             )
             continue
-        seen_codes.add(code)
+        seen_norm.add(norm)
 
-        item = items_by_code.get(code)
+        item = items_by_norm.get(norm)
         if item is None:
             not_found += 1
             results.append(
@@ -198,7 +213,6 @@ def bulk_update(
             changes.append(f"stock: {item.stock or 0} -> {new_stock}")
 
         if row.cost_with_isv is not None:
-            # Redondear a 4 decimales para comparaciones estables.
             computed = round(float(row.cost_with_isv) / isv_divisor, 4)
             current = round(float(item.cost or 0.0), 4)
             if abs(computed - current) > 0.005:
@@ -225,14 +239,22 @@ def bulk_update(
             no_changes += 1
             results.append(
                 InventoryBulkResultRow(
-                    code=code, action="skipped_no_changes", changes=[]
+                    code=item.code,
+                    name=item.name,
+                    action="skipped_no_changes",
+                    changes=[],
                 )
             )
             continue
 
         would_update += 1
         results.append(
-            InventoryBulkResultRow(code=code, action="updated", changes=changes)
+            InventoryBulkResultRow(
+                code=item.code,
+                name=item.name,
+                action="updated",
+                changes=changes,
+            )
         )
 
         if payload.commit:

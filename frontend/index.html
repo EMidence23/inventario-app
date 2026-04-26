@@ -1052,14 +1052,18 @@ function renderBulkPreview(p){
   }
   const shown=rows.slice(0,80);
   det.innerHTML=shown.map(r=>{
+    // Para filas que matchearon un producto de la BD, mostrar solo el
+    // nombre (lo pidio el usuario). Para filas sin match, no hay name
+    // asi que mostramos el code tal como venia en el archivo.
+    const label=r.name?esc(r.name):esc(r.code);
     if(r.action==='updated'){
-      return '<div style="padding:4px 0;border-bottom:1px solid var(--border);"><b>'+esc(r.code)+'</b> — '+
+      return '<div style="padding:5px 0;border-bottom:1px solid var(--border);"><b>'+label+'</b><br>&nbsp;&nbsp;'+
         r.changes.map(c=>'<span style="color:#10b981;">'+esc(c)+'</span>').join(' · ')+'</div>';
     }
     if(r.action==='skipped_not_found'){
-      return '<div style="padding:4px 0;border-bottom:1px solid var(--border);color:#f59e0b;">⚠️ <b>'+esc(r.code)+'</b> — no existe en el inventario</div>';
+      return '<div style="padding:5px 0;border-bottom:1px solid var(--border);color:#f59e0b;">⚠️ <b>'+esc(r.code)+'</b> — no existe en el inventario</div>';
     }
-    return '<div style="padding:4px 0;border-bottom:1px solid var(--border);color:#ef4444;">✘ <b>'+esc(r.code)+'</b> — '+esc(r.reason||'inválido')+'</div>';
+    return '<div style="padding:5px 0;border-bottom:1px solid var(--border);color:#ef4444;">✘ <b>'+label+'</b> — '+esc(r.reason||'inválido')+'</div>';
   }).join('')+(rows.length>shown.length?'<div style="color:var(--text2);margin-top:8px;">... y '+(rows.length-shown.length)+' más</div>':'');
 }
 async function commitBulkUpdate(){

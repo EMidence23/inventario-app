@@ -11,7 +11,7 @@ from sqlalchemy import inspect, text
 from .auth import hash_password
 from .config import settings
 from .db import Base, SessionLocal, engine
-from .models import InventoryItem, User
+from .models import User
 from .routes import auth as auth_routes
 from .routes import cajas as cajas_routes
 from .routes import inventory as inventory_routes
@@ -80,8 +80,12 @@ def _migrate_add_missing_columns() -> None:
                 conn.execute(text("UPDATE inventory_items SET stock = 100 WHERE stock = 0"))
             if "cost" not in existing:
                 # Nuevo campo de costo unitario en lempiras. Sembramos un
-                # costo aleatorio en cada producto existente solo como
-                # placeholder; el admin lo reemplaza con los valores reales.
+                # costo aleatorio UNA SOLA VEZ cuando la columna se crea
+                # por primera vez, como placeholder. El admin luego sube
+                # los costos reales (bulk Excel o edicion 1x1). Importante
+                # no re-sembrar en arranques subsiguientes: si el admin
+                # pone cost=0 a proposito (producto gratis/desconocido),
+                # un re-seed lo corromperia.
                 conn.execute(
                     text(
                         "ALTER TABLE inventory_items "
@@ -90,25 +94,25 @@ def _migrate_add_missing_columns() -> None:
                         else "ALTER TABLE inventory_items ADD COLUMN cost REAL NOT NULL DEFAULT 0"
                     )
                 )
+                # Seed inicial: solo cuando acabamos de crear la columna.
+                _seed_initial_costs_via_sql(conn)
 
 
-def _seed_random_costs() -> None:
-    """Asigna un costo aleatorio inicial (placeholder) a productos cuyo
-    costo siga en 0.
+def _seed_initial_costs_via_sql(conn) -> None:
+    """Llamado UNA VEZ durante la migracion que agrega la columna cost.
 
-    Se usa una semilla derivada del id del producto para que el mismo item
-    siempre reciba el mismo numero pseudo-aleatorio en sucesivos arranques
-    (idempotente). El admin puede sobrescribirlo desde la UI; al editar el
-    valor real, este seed deja de tocarlo (solo afecta filas con cost=0).
+    Toma la conexion abierta por _migrate_add_missing_columns para que el
+    seeding forme parte de la misma transaccion que crea la columna, y
+    nunca se vuelva a ejecutar en arranques posteriores.
     """
-    with SessionLocal() as db:
-        rows = db.query(InventoryItem).filter(InventoryItem.cost == 0).all()
-        if not rows:
-            return
-        for item in rows:
-            rng = random.Random(f"vimeco-cost-seed-{item.id}-{item.code}")
-            item.cost = round(rng.uniform(5.0, 1500.0), 2)
-        db.commit()
+    rows = conn.execute(text("SELECT id, code FROM inventory_items")).fetchall()
+    for r in rows:
+        rng = random.Random(f"vimeco-cost-seed-{r[0]}-{r[1]}")
+        val = round(rng.uniform(5.0, 1500.0), 2)
+        conn.execute(
+            text("UPDATE inventory_items SET cost = :c WHERE id = :i"),
+            {"c": val, "i": r[0]},
+        )
 
 
 def _seed_default_users() -> None:
@@ -147,7 +151,6 @@ def create_app() -> FastAPI:
     Base.metadata.create_all(bind=engine)
     _migrate_add_missing_columns()
     _seed_default_users()
-    _seed_random_costs()
 
     app.include_router(auth_routes.router)
     app.include_router(users_routes.router)

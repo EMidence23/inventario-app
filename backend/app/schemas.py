@@ -83,6 +83,7 @@ class InventoryBulkIn(BaseModel):
 
 class InventoryBulkResultRow(BaseModel):
     code: str
+    name: str | None = None
     action: Literal["updated", "skipped_not_found", "skipped_no_changes", "invalid"]
     changes: list[str]
     reason: str | None = None
