@@ -42,7 +42,10 @@ def decode_token(token: str) -> int | None:
         if sub is None:
             return None
         return int(sub)
-    except JWTError:
+    except (JWTError, ValueError):
+        # JWTError: firma invalida o token malformado.
+        # ValueError: el 'sub' llego pero no es un entero convertible
+        # (ej. token firmado con el mismo secret pero con un sub no numerico).
         return None
 
 
