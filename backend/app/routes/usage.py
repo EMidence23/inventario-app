@@ -76,15 +76,23 @@ def create_usage(
         ts=now,
         items_json=json.dumps([it.model_dump() for it in filtered]),
     )
-    db.add(record)
     # Descontar el uso del stock de cada accesorio. Si el producto no existe
     # (p.ej. fue borrado) solo ignoramos. El stock puede quedar en 0 pero no
-    # se vuelve negativo.
+    # se vuelve negativo. Guardamos en items_json la cantidad realmente
+    # descontada (actualDeducted) para poder restaurar exactamente eso al
+    # borrar el registro y evitar inflar el stock.
+    persisted_items = []
     for it in filtered:
         inv = db.get(InventoryItem, it.id)
-        if inv is None:
-            continue
-        inv.stock = max(0, (inv.stock or 0) - it.qtyUsed)
+        available = (inv.stock or 0) if inv is not None else 0
+        actual = max(0, min(it.qtyUsed, available))
+        if inv is not None:
+            inv.stock = available - actual
+        data = it.model_dump()
+        data["actualDeducted"] = actual
+        persisted_items.append(data)
+    record.items_json = json.dumps(persisted_items)
+    db.add(record)
     db.commit()
     db.refresh(record)
     return _to_out(record)
@@ -107,7 +115,13 @@ def delete_usage(
     for it in items_data:
         try:
             inv_id = int(it.get("id", 0))
-            qty = int(it.get("qtyUsed", 0))
+            # Preferir 'actualDeducted' (cantidad realmente descontada del stock)
+            # para no inflar el stock cuando el qtyUsed original fue mayor al
+            # stock disponible. Fallback a qtyUsed para registros viejos.
+            if "actualDeducted" in it:
+                qty = int(it.get("actualDeducted", 0))
+            else:
+                qty = int(it.get("qtyUsed", 0))
         except (TypeError, ValueError):
             continue
         if not inv_id or qty <= 0:

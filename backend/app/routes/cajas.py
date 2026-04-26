@@ -188,6 +188,16 @@ def delete_herramienta(
             status_code=409,
             detail="No se puede borrar: esta herramienta ya se usa en cajas registradas",
         )
+    # Tampoco permitir borrar si esta referenciada en alguna plantilla;
+    # el FK es ondelete=RESTRICT y romperia con un IntegrityError 500.
+    in_plantilla = (
+        db.query(CajaPlantillaItem).filter(CajaPlantillaItem.herramienta_id == h_id).first()
+    )
+    if in_plantilla is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede borrar: esta herramienta esta en una o mas plantillas. Quitala de las plantillas primero.",
+        )
     db.delete(row)
     db.commit()
     return None
