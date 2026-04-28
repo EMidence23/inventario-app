@@ -38,7 +38,6 @@ CATEGORIAS: dict[str, list[str]] = {
         "inventory_bulk_update",
     ],
     "usos": ["usage_create", "usage_delete"],
-    "usuarios": ["user_create", "user_update", "user_delete"],
     "cajas": [
         "caja_create",
         "caja_revisar",
@@ -73,6 +72,14 @@ def list_audit(
     usuario: str | None = None,
     accion: str | None = None,
     categoria: str | None = None,
+    accesorio_code: str | None = Query(
+        None,
+        description=(
+            "Si se envia, filtra a eventos que afectaron al accesorio con ese "
+            "codigo (creacion/edicion/borrado/uso). Implica rango=all si no se "
+            "especifica otro rango explicito."
+        ),
+    ),
     limit: int = Query(500, ge=1, le=5000),
 ) -> list[AuditLogOut]:
     q = db.query(AuditLog).order_by(AuditLog.ts.desc(), AuditLog.id.desc())
@@ -100,6 +107,34 @@ def list_audit(
         q = q.filter(AuditLog.action == accion)
     if categoria and categoria in CATEGORIAS:
         q = q.filter(AuditLog.action.in_(CATEGORIAS[categoria]))
+
+    # Filtro por accesorio: matchea cualquier evento de inventario o uso
+    # cuyo details_json mencione el codigo. La busqueda es a nivel de
+    # substring del JSON crudo, suficiente porque los codigos son cortos
+    # y unicos (no se confunden con otros campos). Usa parametros bindeados
+    # via SQLAlchemy.like para evitar inyeccion.
+    if accesorio_code:
+        code = accesorio_code.strip()
+        if code:
+            relevantes = [
+                "inventory_create",
+                "inventory_update",
+                "inventory_delete",
+                "inventory_bulk_update",
+                "usage_create",
+                "usage_delete",
+            ]
+            q = q.filter(AuditLog.action.in_(relevantes))
+            # Buscar el code como valor de la propiedad "code" en el JSON.
+            # Las dos formas que aparecen en los detalles:
+            #   "code":"NB-ER04-TL600"   (inventory create/update/delete + sample bulk + items uso)
+            # Cubrimos ambas y dejamos que SQLite haga el match.
+            like_pattern = f'%"code": "{code}"%'
+            like_pattern2 = f'%"code":"{code}"%'  # por si algun dump no tiene espacio.
+            q = q.filter(
+                (AuditLog.details_json.like(like_pattern))
+                | (AuditLog.details_json.like(like_pattern2))
+            )
 
     rows = q.limit(limit).all()
     out: list[AuditLogOut] = []

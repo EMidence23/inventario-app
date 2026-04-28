@@ -116,6 +116,24 @@ def _seed_initial_costs_via_sql(conn) -> None:
         )
 
 
+def _purge_user_audit_entries() -> None:
+    """Limpieza one-shot: el usuario decidio que las acciones sobre
+    usuarios (user_create/user_update/user_delete) no deben aparecer
+    en la bitacora. Borramos las que ya estaban registradas. Es
+    idempotente: si no hay nada que borrar, no hace nada."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "DELETE FROM audit_log WHERE action IN "
+                    "('user_create', 'user_update', 'user_delete')"
+                )
+            )
+    except Exception:
+        # Si falla (ej. la tabla aun no existe en una BD nueva), seguimos.
+        pass
+
+
 def _seed_default_users() -> None:
     """Crea los usuarios iniciales si la tabla de usuarios esta vacia."""
     with SessionLocal() as db:
@@ -151,6 +169,7 @@ def create_app() -> FastAPI:
 
     Base.metadata.create_all(bind=engine)
     _migrate_add_missing_columns()
+    _purge_user_audit_entries()
     _seed_default_users()
 
     app.include_router(auth_routes.router)

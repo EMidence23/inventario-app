@@ -325,12 +325,22 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
           <option value="inventario">📦 Inventario</option>
           <option value="usos">✏️ Registros de uso</option>
           <option value="cajas">🧰 Cajas</option>
-          <option value="usuarios">👥 Usuarios</option>
           <option value="login">🔐 Ingresos</option>
         </select>
         <select id="biUsuario" onchange="renderBitacora()" class="date-picker" style="flex:1;min-width:150px;">
           <option value="">Todos los usuarios</option>
         </select>
+      </div>
+      <!-- Buscador por accesorio: input + dropdown de sugerencias en vivo. -->
+      <div style="position:relative;margin:10px 0;">
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input type="text" id="biAccesorioInput" placeholder="🔍 Buscar movimientos de un accesorio (código o nombre)…"
+            class="date-picker" style="flex:1;"
+            oninput="onBitacoraAccesorioInput()" onfocus="onBitacoraAccesorioInput()" onblur="setTimeout(closeBitacoraSuggest,150)">
+          <button class="btn btn-secondary" id="biAccesorioClear" style="display:none;" onclick="clearBitacoraAccesorio()">✕</button>
+        </div>
+        <div id="biAccesorioSuggest" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:50;background:var(--card);border:1px solid var(--border,#2a3142);border-radius:8px;max-height:240px;overflow:auto;margin-top:4px;box-shadow:0 4px 12px rgba(0,0,0,0.3);"></div>
+        <div id="biAccesorioPill" style="display:none;margin-top:6px;font-size:13px;color:var(--text2);"></div>
       </div>
       <div id="bitacoraList"></div>
     </div>
@@ -2299,9 +2309,10 @@ async function deletePlantilla(id){
 }
 
 // ── BITACORA (solo admin) ────────────────────────────────
-// Estado local del filtro: rango de fecha + ultima carga.
+// Estado local del filtro: rango + accesorio seleccionado + ultima carga.
 let bitacoraRango='hoy';
 let bitacoraData=[];
+let bitacoraAccesorio=null; // {code, name} cuando hay un accesorio seleccionado.
 
 // Mapeo legible de las acciones del backend a label + icono.
 // Si agregamos eventos nuevos en el backend, sumarlos aqui para que
@@ -2317,9 +2328,6 @@ const BITACORA_ACTIONS={
   inventory_bulk_update:{label:'Actualizó inventario por Excel', icon:'📥', color:'#8b5cf6'},
   usage_create:    {label:'Registró uso',             icon:'✏️', color:'#10b981'},
   usage_delete:    {label:'Borró registro de uso',    icon:'🗑️', color:'#ef4444'},
-  user_create:     {label:'Creó usuario',             icon:'👤', color:'#10b981'},
-  user_update:     {label:'Editó usuario',            icon:'✏️', color:'#3b82f6'},
-  user_delete:     {label:'Borró usuario',            icon:'🗑️', color:'#ef4444'},
   caja_create:     {label:'Asignó caja',              icon:'🧰', color:'#10b981'},
   caja_revisar:    {label:'Revisó caja al regreso',   icon:'✅', color:'#3b82f6'},
   caja_delete:     {label:'Borró caja',               icon:'🗑️', color:'#ef4444'},
@@ -2335,12 +2343,76 @@ const BITACORA_ACTIONS={
 };
 
 async function loadBitacora(){
-  // Backend ya filtra por rango; el resto (categoria/usuario) lo hacemos
-  // en cliente para que cambiar el dropdown sea instantaneo. Si la cuenta
-  // crece a >5k entradas/dia, mover los filtros al server.
-  const params=new URLSearchParams({rango:bitacoraRango,limit:'2000'});
+  // Backend filtra por rango y por accesorio (si esta seleccionado);
+  // el resto (categoria/usuario) lo hacemos en cliente para que cambiar
+  // el dropdown sea instantaneo. Cuando hay accesorio seleccionado,
+  // forzamos rango=all asi vemos toda su historia, no solo las ultimas
+  // entradas del rango actual.
+  const params=new URLSearchParams({limit:'2000'});
+  if(bitacoraAccesorio){
+    params.set('rango','all');
+    params.set('accesorio_code',bitacoraAccesorio.code);
+  }else{
+    params.set('rango',bitacoraRango);
+  }
   bitacoraData=await api('/api/audit-log?'+params.toString());
   return bitacoraData;
+}
+// ── Buscador de accesorios en BITACORA ────────────────────
+function onBitacoraAccesorioInput(){
+  const inp=document.getElementById('biAccesorioInput');
+  const box=document.getElementById('biAccesorioSuggest');
+  const q=(inp.value||'').trim().toLowerCase();
+  if(!q){box.style.display='none';return;}
+  const inv=getInventory();
+  // Match por code o name. Mostramos hasta 30 sugerencias para no
+  // saturar el dropdown (el inventario tiene >700 productos).
+  const matches=inv.filter(it=>{
+    const c=String(it.code||'').toLowerCase();
+    const n=String(it.name||'').toLowerCase();
+    return c.includes(q)||n.includes(q);
+  }).slice(0,30);
+  if(matches.length===0){
+    box.innerHTML='<div style="padding:10px;color:var(--text2);font-size:13px;">Sin resultados</div>';
+    box.style.display='block';
+    return;
+  }
+  box.innerHTML=matches.map(it=>{
+    const code=esc(it.code||''); const name=esc(it.name||'');
+    return `<div class="bi-sugg" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border,#2a3142);"
+      onmousedown="pickBitacoraAccesorio('${code.replace(/'/g,"\\'")}','${name.replace(/'/g,"\\'")}')">
+      <div style="font-weight:600;font-size:13px;">${name}</div>
+      <div style="color:var(--text2);font-size:11px;">cód. ${code}</div>
+    </div>`;
+  }).join('');
+  box.style.display='block';
+}
+function closeBitacoraSuggest(){
+  const box=document.getElementById('biAccesorioSuggest');
+  if(box) box.style.display='none';
+}
+async function pickBitacoraAccesorio(code,name){
+  bitacoraAccesorio={code,name};
+  const inp=document.getElementById('biAccesorioInput');
+  inp.value=name+' (cód. '+code+')';
+  inp.disabled=true;
+  document.getElementById('biAccesorioClear').style.display='inline-flex';
+  closeBitacoraSuggest();
+  const pill=document.getElementById('biAccesorioPill');
+  pill.style.display='block';
+  pill.innerHTML='Mostrando todos los movimientos de <b>'+esc(name)+'</b> (toda la historia).';
+  await loadBitacora();
+  renderBitacora();
+}
+async function clearBitacoraAccesorio(){
+  bitacoraAccesorio=null;
+  const inp=document.getElementById('biAccesorioInput');
+  inp.value=''; inp.disabled=false;
+  document.getElementById('biAccesorioClear').style.display='none';
+  document.getElementById('biAccesorioPill').style.display='none';
+  closeBitacoraSuggest();
+  await loadBitacora();
+  renderBitacora();
 }
 function setBitacoraRango(r){
   bitacoraRango=r;
@@ -2400,20 +2472,6 @@ function _bitacoraDescribeDetails(action,details){
       const total=items.reduce((a,it)=>a+Number(it.restored||0),0);
       return `Restauró ${total} unidad(es) al stock · registro original de ${esc(details.original_user||'')}`;
     }
-    if(action==='user_create'){
-      return `${esc(details.username||'')} (rol ${esc(details.role||'')})`;
-    }
-    if(action==='user_update'){
-      const ch=details.changes||{};
-      const parts=[];
-      if(ch.username) parts.push(`username ${esc(ch.username.before)} → ${esc(ch.username.after)}`);
-      if(ch.role)     parts.push(`rol ${esc(ch.role.before)} → ${esc(ch.role.after)}`);
-      if(ch.password) parts.push(`contraseña actualizada`);
-      return `${esc(details.username||'')}${parts.length?(' · '+parts.join(' · ')):''}`;
-    }
-    if(action==='user_delete'){
-      return `${esc(details.username||'')} (rol ${esc(details.role||'')})`;
-    }
     if(action==='caja_create'){
       const inst=(details.instaladores||[]).map(esc).join(', ');
       return `${(details.items||[]).length} herramienta(s) → ${inst||'(sin instaladores)'}`;
@@ -2464,7 +2522,6 @@ function renderBitacora(){
     login:['login_ok','login_failed','logout','password_change'],
     inventario:['inventory_create','inventory_update','inventory_delete','inventory_bulk_update'],
     usos:['usage_create','usage_delete'],
-    usuarios:['user_create','user_update','user_delete'],
     cajas:['caja_create','caja_revisar','caja_delete','instalador_create','instalador_update','instalador_delete','herramienta_create','herramienta_update','herramienta_delete','plantilla_create','plantilla_update','plantilla_delete'],
   };
   let rows=bitacoraData;
