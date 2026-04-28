@@ -16,7 +16,6 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from ..audit import write_audit
 from ..auth import get_current_user, require_admin
 from ..db import get_db
 from ..models import (
@@ -73,7 +72,6 @@ def create_instalador(
     db.add(row)
     db.commit()
     db.refresh(row)
-    write_audit(db, action="instalador_create", actor=actor, entity_type="instalador", entity_id=row.id, details={"nombre": row.nombre, "activo": bool(row.activo)})
     return InstaladorOut(id=row.id, nombre=row.nombre, activo=bool(row.activo))
 
 
@@ -102,7 +100,6 @@ def update_instalador(
     row.activo = payload.activo
     db.commit()
     db.refresh(row)
-    write_audit(db, action="instalador_update", actor=actor, entity_type="instalador", entity_id=row.id, details={"before": prev, "after": {"nombre": row.nombre, "activo": bool(row.activo)}})
     return InstaladorOut(id=row.id, nombre=row.nombre, activo=bool(row.activo))
 
 
@@ -118,7 +115,6 @@ def delete_instalador(
     snapshot = {"nombre": row.nombre, "activo": bool(row.activo)}
     db.delete(row)
     db.commit()
-    write_audit(db, action="instalador_delete", actor=actor, entity_type="instalador", entity_id=inst_id, details=snapshot)
     return None
 
 
@@ -148,7 +144,6 @@ def create_herramienta(
     db.add(row)
     db.commit()
     db.refresh(row)
-    write_audit(db, action="herramienta_create", actor=actor, entity_type="herramienta", entity_id=row.id, details={"nombre": row.nombre, "activo": bool(row.activo)})
     return HerramientaOut(id=row.id, nombre=row.nombre, activo=bool(row.activo))
 
 
@@ -177,7 +172,6 @@ def update_herramienta(
     row.activo = payload.activo
     db.commit()
     db.refresh(row)
-    write_audit(db, action="herramienta_update", actor=actor, entity_type="herramienta", entity_id=row.id, details={"before": prev, "after": {"nombre": row.nombre, "activo": bool(row.activo)}})
     return HerramientaOut(id=row.id, nombre=row.nombre, activo=bool(row.activo))
 
 
@@ -210,7 +204,6 @@ def delete_herramienta(
     snapshot = {"nombre": row.nombre, "activo": bool(row.activo)}
     db.delete(row)
     db.commit()
-    write_audit(db, action="herramienta_delete", actor=actor, entity_type="herramienta", entity_id=h_id, details=snapshot)
     return None
 
 
@@ -361,19 +354,6 @@ def create_caja(
 
     db.commit()
     db.refresh(caja)
-    write_audit(
-        db,
-        action="caja_create",
-        actor=user,
-        entity_type="caja",
-        entity_id=caja.id,
-        details={
-            "fecha": caja.fecha,
-            "instaladores": [i.nombre for i in inst_rows],
-            "items": [{"herramienta": h_by_id[it.herramienta_id].nombre, "entregadas": int(it.cantidad_entregada)} for it in payload.items],
-            "notas": caja.notas or "",
-        },
-    )
     return _caja_to_out(caja)
 
 
@@ -422,20 +402,6 @@ def revisar_caja(
     db.refresh(caja)
     total_ent = sum(int(it.cantidad_entregada or 0) for it in caja.items)
     total_dev = sum(int(it.cantidad_devuelta or 0) for it in caja.items)
-    write_audit(
-        db,
-        action="caja_revisar",
-        actor=user,
-        entity_type="caja",
-        entity_id=caja.id,
-        details={
-            "fecha": caja.fecha,
-            "total_entregadas": total_ent,
-            "total_devueltas": total_dev,
-            "total_faltantes": max(0, total_ent - total_dev),
-            "items": [{"herramienta": it.herramienta_nombre_snapshot, "entregadas": int(it.cantidad_entregada or 0), "devueltas": int(it.cantidad_devuelta or 0), "estado": it.estado} for it in caja.items],
-        },
-    )
     return _caja_to_out(caja)
 
 
@@ -457,7 +423,6 @@ def delete_caja(
     }
     db.delete(caja)
     db.commit()
-    write_audit(db, action="caja_delete", actor=actor, entity_type="caja", entity_id=caja_id, details=snapshot)
     return None
 
 
@@ -509,14 +474,6 @@ def create_plantilla(
     db.commit()
     db.refresh(plantilla)
     h_by_id = {h.id: h for h in h_rows}
-    write_audit(
-        db,
-        action="plantilla_create",
-        actor=actor,
-        entity_type="plantilla",
-        entity_id=plantilla.id,
-        details={"nombre": plantilla.nombre, "items": [{"herramienta": h_by_id[it.herramienta_id].nombre, "cantidad": int(it.cantidad)} for it in payload.items]},
-    )
     return _plantilla_to_out(plantilla, h_by_id)
 
 
@@ -556,14 +513,6 @@ def update_plantilla(
     db.commit()
     db.refresh(plantilla)
     h_by_id = {h.id: h for h in h_rows}
-    write_audit(
-        db,
-        action="plantilla_update",
-        actor=actor,
-        entity_type="plantilla",
-        entity_id=plantilla.id,
-        details={"nombre": plantilla.nombre, "items": [{"herramienta": h_by_id[it.herramienta_id].nombre, "cantidad": int(it.cantidad)} for it in payload.items]},
-    )
     return _plantilla_to_out(plantilla, h_by_id)
 
 
@@ -579,5 +528,4 @@ def delete_plantilla(
     snapshot = {"nombre": plantilla.nombre, "item_count": len(plantilla.items)}
     db.delete(plantilla)
     db.commit()
-    write_audit(db, action="plantilla_delete", actor=actor, entity_type="plantilla", entity_id=plantilla_id, details=snapshot)
     return None

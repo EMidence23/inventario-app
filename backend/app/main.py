@@ -116,17 +116,18 @@ def _seed_initial_costs_via_sql(conn) -> None:
         )
 
 
-def _purge_user_audit_entries() -> None:
-    """Limpieza one-shot: el usuario decidio que las acciones sobre
-    usuarios (user_create/user_update/user_delete) no deben aparecer
-    en la bitacora. Borramos las que ya estaban registradas. Es
-    idempotente: si no hay nada que borrar, no hace nada."""
+def _purge_audit_non_inventory_entries() -> None:
+    """Limpieza one-shot: la pagina de MOVIMIENTOS solo muestra eventos
+    de inventario y registros de uso. Borramos cualquier entrada de
+    cajas, usuarios, logins/logout y cambios de contrasenia que hayan
+    quedado de versiones anteriores. Es idempotente."""
     try:
         with engine.begin() as conn:
             conn.execute(
                 text(
-                    "DELETE FROM audit_log WHERE action IN "
-                    "('user_create', 'user_update', 'user_delete')"
+                    "DELETE FROM audit_log WHERE action NOT IN ("
+                    "'inventory_create','inventory_update','inventory_delete',"
+                    "'inventory_bulk_update','usage_create','usage_delete')"
                 )
             )
     except Exception:
@@ -169,7 +170,7 @@ def create_app() -> FastAPI:
 
     Base.metadata.create_all(bind=engine)
     _migrate_add_missing_columns()
-    _purge_user_audit_entries()
+    _purge_audit_non_inventory_entries()
     _seed_default_users()
 
     app.include_router(auth_routes.router)

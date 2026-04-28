@@ -30,7 +30,6 @@ router = APIRouter(prefix="/api/audit-log", tags=["audit"])
 # Si no agrega ruido, listamos cada accion explicita aqui asi cuando
 # agreguemos mas eventos solo sumamos a la lista correspondiente.
 CATEGORIAS: dict[str, list[str]] = {
-    "login": ["login_ok", "login_failed", "logout", "password_change"],
     "inventario": [
         "inventory_create",
         "inventory_update",
@@ -38,20 +37,6 @@ CATEGORIAS: dict[str, list[str]] = {
         "inventory_bulk_update",
     ],
     "usos": ["usage_create", "usage_delete"],
-    "cajas": [
-        "caja_create",
-        "caja_revisar",
-        "caja_delete",
-        "instalador_create",
-        "instalador_update",
-        "instalador_delete",
-        "herramienta_create",
-        "herramienta_update",
-        "herramienta_delete",
-        "plantilla_create",
-        "plantilla_update",
-        "plantilla_delete",
-    ],
 }
 
 
