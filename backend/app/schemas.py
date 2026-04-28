@@ -217,3 +217,14 @@ class CajaHerramientaOut(BaseModel):
     total_faltantes: int
     estado: str
     notas: str
+
+
+class AuditLogOut(BaseModel):
+    id: int
+    user_id: int | None
+    username: str
+    action: str
+    entity_type: str
+    entity_id: str
+    details: dict | list | str | None
+    ts: str  # ISO con sufijo Z (UTC); el frontend convierte a hora local.

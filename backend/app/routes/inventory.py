@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from ..audit import write_audit
 from ..auth import get_current_user, require_admin
 from ..db import get_db
 from ..models import InventoryItem, User
@@ -46,7 +47,7 @@ def list_items(
 @router.post("", response_model=InventoryItemOut, status_code=status.HTTP_201_CREATED)
 def create_item(
     payload: InventoryItemIn,
-    _: Annotated[User, Depends(require_admin)],
+    actor: Annotated[User, Depends(require_admin)],
     db: Annotated[Session, Depends(get_db)],
 ) -> InventoryItemOut:
     if db.query(InventoryItem).filter(InventoryItem.code == payload.code).first() is not None:
@@ -64,6 +65,20 @@ def create_item(
     db.add(item)
     db.commit()
     db.refresh(item)
+    write_audit(
+        db,
+        action="inventory_create",
+        actor=actor,
+        entity_type="inventory_item",
+        entity_id=item.id,
+        details={
+            "code": item.code,
+            "name": item.name,
+            "cat": item.cat or "",
+            "stock": item.stock,
+            "cost": float(item.cost or 0.0),
+        },
+    )
     return InventoryItemOut(
         id=item.id,
         code=item.code,
@@ -78,7 +93,7 @@ def create_item(
 def update_item(
     item_id: int,
     payload: InventoryItemIn,
-    _: Annotated[User, Depends(require_admin)],
+    actor: Annotated[User, Depends(require_admin)],
     db: Annotated[Session, Depends(get_db)],
 ) -> InventoryItemOut:
     item = db.get(InventoryItem, item_id)
@@ -94,6 +109,14 @@ def update_item(
             status_code=status.HTTP_409_CONFLICT,
             detail="Ya existe otro accesorio con ese codigo",
         )
+    # Snapshot del estado anterior para registrar el diff en bitacora.
+    before = {
+        "code": item.code,
+        "name": item.name,
+        "cat": item.cat or "",
+        "stock": item.stock,
+        "cost": float(item.cost or 0.0),
+    }
     item.code = payload.code
     item.name = payload.name
     item.cat = payload.cat or ""
@@ -103,6 +126,22 @@ def update_item(
         item.cost = float(payload.cost)
     db.commit()
     db.refresh(item)
+    after = {
+        "code": item.code,
+        "name": item.name,
+        "cat": item.cat or "",
+        "stock": item.stock,
+        "cost": float(item.cost or 0.0),
+    }
+    changes = {k: {"before": before[k], "after": after[k]} for k in before if before[k] != after[k]}
+    write_audit(
+        db,
+        action="inventory_update",
+        actor=actor,
+        entity_type="inventory_item",
+        entity_id=item.id,
+        details={"code": item.code, "name": item.name, "changes": changes},
+    )
     return InventoryItemOut(
         id=item.id,
         code=item.code,
@@ -116,7 +155,7 @@ def update_item(
 @router.post("/bulk-update", response_model=InventoryBulkOut)
 def bulk_update(
     payload: InventoryBulkIn,
-    _: Annotated[User, Depends(require_admin)],
+    actor: Annotated[User, Depends(require_admin)],
     db: Annotated[Session, Depends(get_db)],
 ) -> InventoryBulkOut:
     """Actualizacion masiva desde Excel.
@@ -265,6 +304,26 @@ def bulk_update(
 
     if payload.commit:
         db.commit()
+        # Solo registramos en bitacora cuando se aplican cambios reales.
+        # El preview (commit=False) no genera ruido en el log.
+        if would_update > 0:
+            write_audit(
+                db,
+                action="inventory_bulk_update",
+                actor=actor,
+                entity_type="inventory",
+                details={
+                    "updated": would_update,
+                    "not_found": not_found,
+                    "no_changes": no_changes,
+                    "invalid": invalid,
+                    "isv_rate": payload.isv_rate,
+                    "sample": [
+                        {"code": r.code, "name": r.name, "changes": r.changes}
+                        for r in results if r.action == "updated"
+                    ][:25],
+                },
+            )
 
     return InventoryBulkOut(
         total_rows=len(payload.rows),
@@ -280,12 +339,27 @@ def bulk_update(
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_item(
     item_id: int,
-    _: Annotated[User, Depends(require_admin)],
+    actor: Annotated[User, Depends(require_admin)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     item = db.get(InventoryItem, item_id)
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Accesorio no encontrado")
+    snapshot = {
+        "code": item.code,
+        "name": item.name,
+        "cat": item.cat or "",
+        "stock": item.stock,
+        "cost": float(item.cost or 0.0),
+    }
     db.delete(item)
     db.commit()
+    write_audit(
+        db,
+        action="inventory_delete",
+        actor=actor,
+        entity_type="inventory_item",
+        entity_id=item_id,
+        details=snapshot,
+    )
     return None

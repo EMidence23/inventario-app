@@ -145,3 +145,33 @@ class CajaPlantillaItem(Base):
     cantidad: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
     plantilla: Mapped["CajaPlantilla"] = relationship("CajaPlantilla", back_populates="items")
+
+
+class AuditLog(Base):
+    """Bitacora de actividad: registra cada accion relevante (logins,
+    creaciones, ediciones, borrados) con autor + timestamp + detalles.
+
+    - user_id: id del usuario que hizo la accion. Nullable porque algunos
+      eventos (login fallido) pueden suceder sin usuario autenticado.
+    - username_snapshot: copia del username al momento del evento, para
+      que el log siga siendo legible aunque el usuario sea borrado luego.
+    - action: identificador estable (ej: 'login_ok', 'inventory_delete',
+      'caja_revisar'). Es el discriminante para filtrar/agrupar.
+    - entity_type / entity_id: a que recurso aplica la accion (opcional).
+    - details_json: detalles libres serializados como JSON (cambios
+      antes/despues, motivos, contadores). Nunca contiene contrasenias.
+    - ts: timestamp UTC. El frontend lo convierte a hora local.
+    """
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    username_snapshot: Mapped[str] = mapped_column(String(80), default="", index=True)
+    action: Mapped[str] = mapped_column(String(48), nullable=False, index=True)
+    entity_type: Mapped[str] = mapped_column(String(32), default="", index=True)
+    entity_id: Mapped[str] = mapped_column(String(48), default="")
+    details_json: Mapped[str] = mapped_column(Text, default="")
+    ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

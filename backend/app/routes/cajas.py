@@ -16,6 +16,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from ..audit import write_audit
 from ..auth import get_current_user, require_admin
 from ..db import get_db
 from ..models import (
@@ -59,7 +60,7 @@ def list_instaladores(
 @router.post("/api/instaladores", response_model=InstaladorOut, status_code=status.HTTP_201_CREATED)
 def create_instalador(
     payload: InstaladorIn,
-    _: Annotated[User, Depends(get_current_user)],
+    actor: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> InstaladorOut:
     nombre = payload.nombre.strip()
@@ -72,6 +73,7 @@ def create_instalador(
     db.add(row)
     db.commit()
     db.refresh(row)
+    write_audit(db, action="instalador_create", actor=actor, entity_type="instalador", entity_id=row.id, details={"nombre": row.nombre, "activo": bool(row.activo)})
     return InstaladorOut(id=row.id, nombre=row.nombre, activo=bool(row.activo))
 
 
@@ -79,7 +81,7 @@ def create_instalador(
 def update_instalador(
     inst_id: int,
     payload: InstaladorIn,
-    _: Annotated[User, Depends(get_current_user)],
+    actor: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> InstaladorOut:
     row = db.get(Instalador, inst_id)
@@ -95,24 +97,28 @@ def update_instalador(
     )
     if dupe is not None:
         raise HTTPException(status_code=409, detail="Ya existe otro instalador con ese nombre")
+    prev = {"nombre": row.nombre, "activo": bool(row.activo)}
     row.nombre = nombre
     row.activo = payload.activo
     db.commit()
     db.refresh(row)
+    write_audit(db, action="instalador_update", actor=actor, entity_type="instalador", entity_id=row.id, details={"before": prev, "after": {"nombre": row.nombre, "activo": bool(row.activo)}})
     return InstaladorOut(id=row.id, nombre=row.nombre, activo=bool(row.activo))
 
 
 @router.delete("/api/instaladores/{inst_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_instalador(
     inst_id: int,
-    _: Annotated[User, Depends(get_current_user)],
+    actor: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     row = db.get(Instalador, inst_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Instalador no encontrado")
+    snapshot = {"nombre": row.nombre, "activo": bool(row.activo)}
     db.delete(row)
     db.commit()
+    write_audit(db, action="instalador_delete", actor=actor, entity_type="instalador", entity_id=inst_id, details=snapshot)
     return None
 
 
@@ -129,7 +135,7 @@ def list_herramientas(
 @router.post("/api/herramientas", response_model=HerramientaOut, status_code=status.HTTP_201_CREATED)
 def create_herramienta(
     payload: HerramientaIn,
-    _: Annotated[User, Depends(get_current_user)],
+    actor: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> HerramientaOut:
     nombre = payload.nombre.strip()
@@ -142,6 +148,7 @@ def create_herramienta(
     db.add(row)
     db.commit()
     db.refresh(row)
+    write_audit(db, action="herramienta_create", actor=actor, entity_type="herramienta", entity_id=row.id, details={"nombre": row.nombre, "activo": bool(row.activo)})
     return HerramientaOut(id=row.id, nombre=row.nombre, activo=bool(row.activo))
 
 
@@ -149,7 +156,7 @@ def create_herramienta(
 def update_herramienta(
     h_id: int,
     payload: HerramientaIn,
-    _: Annotated[User, Depends(get_current_user)],
+    actor: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> HerramientaOut:
     row = db.get(Herramienta, h_id)
@@ -165,17 +172,19 @@ def update_herramienta(
     )
     if dupe is not None:
         raise HTTPException(status_code=409, detail="Ya existe otra herramienta con ese nombre")
+    prev = {"nombre": row.nombre, "activo": bool(row.activo)}
     row.nombre = nombre
     row.activo = payload.activo
     db.commit()
     db.refresh(row)
+    write_audit(db, action="herramienta_update", actor=actor, entity_type="herramienta", entity_id=row.id, details={"before": prev, "after": {"nombre": row.nombre, "activo": bool(row.activo)}})
     return HerramientaOut(id=row.id, nombre=row.nombre, activo=bool(row.activo))
 
 
 @router.delete("/api/herramientas/{h_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_herramienta(
     h_id: int,
-    _: Annotated[User, Depends(get_current_user)],
+    actor: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     row = db.get(Herramienta, h_id)
@@ -198,8 +207,10 @@ def delete_herramienta(
             status_code=409,
             detail="No se puede borrar: esta herramienta esta en una o mas plantillas. Quitala de las plantillas primero.",
         )
+    snapshot = {"nombre": row.nombre, "activo": bool(row.activo)}
     db.delete(row)
     db.commit()
+    write_audit(db, action="herramienta_delete", actor=actor, entity_type="herramienta", entity_id=h_id, details=snapshot)
     return None
 
 
@@ -350,6 +361,19 @@ def create_caja(
 
     db.commit()
     db.refresh(caja)
+    write_audit(
+        db,
+        action="caja_create",
+        actor=user,
+        entity_type="caja",
+        entity_id=caja.id,
+        details={
+            "fecha": caja.fecha,
+            "instaladores": [i.nombre for i in inst_rows],
+            "items": [{"herramienta": h_by_id[it.herramienta_id].nombre, "entregadas": int(it.cantidad_entregada)} for it in payload.items],
+            "notas": caja.notas or "",
+        },
+    )
     return _caja_to_out(caja)
 
 
@@ -396,21 +420,44 @@ def revisar_caja(
 
     db.commit()
     db.refresh(caja)
+    total_ent = sum(int(it.cantidad_entregada or 0) for it in caja.items)
+    total_dev = sum(int(it.cantidad_devuelta or 0) for it in caja.items)
+    write_audit(
+        db,
+        action="caja_revisar",
+        actor=user,
+        entity_type="caja",
+        entity_id=caja.id,
+        details={
+            "fecha": caja.fecha,
+            "total_entregadas": total_ent,
+            "total_devueltas": total_dev,
+            "total_faltantes": max(0, total_ent - total_dev),
+            "items": [{"herramienta": it.herramienta_nombre_snapshot, "entregadas": int(it.cantidad_entregada or 0), "devueltas": int(it.cantidad_devuelta or 0), "estado": it.estado} for it in caja.items],
+        },
+    )
     return _caja_to_out(caja)
 
 
 @router.delete("/api/cajas/{caja_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_caja(
     caja_id: int,
-    _: Annotated[User, Depends(require_admin)],
+    actor: Annotated[User, Depends(require_admin)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     # Solo admin puede borrar del historial.
     caja = db.get(CajaHerramienta, caja_id)
     if caja is None:
         raise HTTPException(status_code=404, detail="Caja no encontrada")
+    snapshot = {
+        "fecha": caja.fecha,
+        "creada_por": caja.creada_por_username,
+        "instaladores": [ci.instalador_nombre_snapshot for ci in caja.instaladores],
+        "total_items": len(caja.items),
+    }
     db.delete(caja)
     db.commit()
+    write_audit(db, action="caja_delete", actor=actor, entity_type="caja", entity_id=caja_id, details=snapshot)
     return None
 
 
@@ -440,7 +487,7 @@ def list_plantillas(
 @router.post("/api/plantillas", response_model=PlantillaOut, status_code=status.HTTP_201_CREATED)
 def create_plantilla(
     payload: PlantillaIn,
-    _: Annotated[User, Depends(get_current_user)],
+    actor: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> PlantillaOut:
     nombre = payload.nombre.strip()
@@ -462,6 +509,14 @@ def create_plantilla(
     db.commit()
     db.refresh(plantilla)
     h_by_id = {h.id: h for h in h_rows}
+    write_audit(
+        db,
+        action="plantilla_create",
+        actor=actor,
+        entity_type="plantilla",
+        entity_id=plantilla.id,
+        details={"nombre": plantilla.nombre, "items": [{"herramienta": h_by_id[it.herramienta_id].nombre, "cantidad": int(it.cantidad)} for it in payload.items]},
+    )
     return _plantilla_to_out(plantilla, h_by_id)
 
 
@@ -469,7 +524,7 @@ def create_plantilla(
 def update_plantilla(
     plantilla_id: int,
     payload: PlantillaIn,
-    _: Annotated[User, Depends(get_current_user)],
+    actor: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> PlantillaOut:
     plantilla = db.get(CajaPlantilla, plantilla_id)
@@ -501,18 +556,28 @@ def update_plantilla(
     db.commit()
     db.refresh(plantilla)
     h_by_id = {h.id: h for h in h_rows}
+    write_audit(
+        db,
+        action="plantilla_update",
+        actor=actor,
+        entity_type="plantilla",
+        entity_id=plantilla.id,
+        details={"nombre": plantilla.nombre, "items": [{"herramienta": h_by_id[it.herramienta_id].nombre, "cantidad": int(it.cantidad)} for it in payload.items]},
+    )
     return _plantilla_to_out(plantilla, h_by_id)
 
 
 @router.delete("/api/plantillas/{plantilla_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_plantilla(
     plantilla_id: int,
-    _: Annotated[User, Depends(get_current_user)],
+    actor: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     plantilla = db.get(CajaPlantilla, plantilla_id)
     if plantilla is None:
         raise HTTPException(status_code=404, detail="Plantilla no encontrada")
+    snapshot = {"nombre": plantilla.nombre, "item_count": len(plantilla.items)}
     db.delete(plantilla)
     db.commit()
+    write_audit(db, action="plantilla_delete", actor=actor, entity_type="plantilla", entity_id=plantilla_id, details=snapshot)
     return None

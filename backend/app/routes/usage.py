@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from ..audit import write_audit
 from ..auth import get_current_user, require_admin
 from ..db import get_db
 from ..models import InventoryItem, UsageRecord, User
@@ -95,13 +96,32 @@ def create_usage(
     db.add(record)
     db.commit()
     db.refresh(record)
+    write_audit(
+        db,
+        action="usage_create",
+        actor=user,
+        entity_type="usage_record",
+        entity_id=record.id,
+        details={
+            "date": record.date,
+            "items": [
+                {
+                    "code": it.get("code", ""),
+                    "name": it.get("name", ""),
+                    "qtyUsed": int(it.get("qtyUsed", 0)),
+                    "actualDeducted": int(it.get("actualDeducted", 0)),
+                }
+                for it in persisted_items
+            ],
+        },
+    )
     return _to_out(record)
 
 
 @router.delete("/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_usage(
     record_id: int,
-    _: Annotated[User, Depends(require_admin)],
+    actor: Annotated[User, Depends(require_admin)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     row = db.get(UsageRecord, record_id)
@@ -112,6 +132,7 @@ def delete_usage(
         items_data = json.loads(row.items_json or "[]")
     except (TypeError, ValueError):
         items_data = []
+    audit_items = []
     for it in items_data:
         try:
             inv_id = int(it.get("id", 0))
@@ -130,6 +151,24 @@ def delete_usage(
         if inv is None:
             continue
         inv.stock = (inv.stock or 0) + qty
+        audit_items.append({
+            "code": str(it.get("code", "")),
+            "name": str(it.get("name", "")),
+            "restored": qty,
+        })
+    snapshot = {
+        "date": row.date,
+        "original_user": row.username_snapshot or "",
+        "items_restored": audit_items,
+    }
     db.delete(row)
     db.commit()
+    write_audit(
+        db,
+        action="usage_delete",
+        actor=actor,
+        entity_type="usage_record",
+        entity_id=record_id,
+        details=snapshot,
+    )
     return None

@@ -311,6 +311,30 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
       <div id="userList"></div>
     </div>
 
+    <!-- BITACORA -->
+    <div id="tabBitacora" class="tab-view">
+      <div class="hist-tabs">
+        <button class="hist-tab active" id="biRangoHoy" onclick="setBitacoraRango('hoy')">📅 HOY</button>
+        <button class="hist-tab" id="biRangoSem" onclick="setBitacoraRango('semana')">📊 SEMANA</button>
+        <button class="hist-tab" id="biRangoMes" onclick="setBitacoraRango('mes')">📆 MES</button>
+        <button class="hist-tab" id="biRangoAll" onclick="setBitacoraRango('all')">📚 TODO</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;">
+        <select id="biCategoria" onchange="renderBitacora()" class="date-picker" style="flex:1;min-width:150px;">
+          <option value="">Todas las categorías</option>
+          <option value="inventario">📦 Inventario</option>
+          <option value="usos">✏️ Registros de uso</option>
+          <option value="cajas">🧰 Cajas</option>
+          <option value="usuarios">👥 Usuarios</option>
+          <option value="login">🔐 Ingresos</option>
+        </select>
+        <select id="biUsuario" onchange="renderBitacora()" class="date-picker" style="flex:1;min-width:150px;">
+          <option value="">Todos los usuarios</option>
+        </select>
+      </div>
+      <div id="bitacoraList"></div>
+    </div>
+
     <!-- CAJAS DE HERRAMIENTAS -->
     <div id="tabCajas" class="tab-view">
       <div class="hist-tabs">
@@ -378,6 +402,9 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
     </button>
     <button class="nav-item" onclick="switchTab('Usuarios')" id="nav-Usuarios" style="display:none;">
       <span class="nav-icon">👥</span><span class="nav-label">USUARIOS</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('Bitacora')" id="nav-Bitacora" style="display:none;">
+      <span class="nav-icon">📜</span><span class="nav-label">BITÁCORA</span>
     </button>
   </nav>
 </div>
@@ -689,6 +716,7 @@ function applyRoleVisibility(){
   document.getElementById('adminAddBtn').style.display=isAdmin?'flex':'none';
   document.getElementById('nav-Usuarios').style.display=isAdmin?'flex':'none';
   document.getElementById('nav-Reportes').style.display=isAdmin?'flex':'none';
+  document.getElementById('nav-Bitacora').style.display=isAdmin?'flex':'none';
   document.getElementById('reportSemanaCard').style.display=isAdmin?'block':'none';
 }
 async function startApp(){
@@ -743,6 +771,7 @@ async function switchTab(tab){
     else if(tab==='Historial'){await loadUsage();renderHistorial();}
     else if(tab==='Cajas'){await Promise.all([loadInstaladores(),loadHerramientas(),loadCajas(),loadPlantillas()]);renderCajasTab();}
     else if(tab==='Usuarios'){await loadUsers();renderUsers();}
+    else if(tab==='Bitacora'){await loadBitacora();renderBitacora();}
   }catch(err){
     if(err.status===401){doLogout();return;}
     showToast('⚠️ '+err.message,true);
@@ -2267,6 +2296,198 @@ async function deletePlantilla(id){
     showToast('🗑️ Plantilla eliminada');
   }catch(err){showToast('⚠️ '+err.message,true);}
   finally{showLoader(false);}
+}
+
+// ── BITACORA (solo admin) ────────────────────────────────
+// Estado local del filtro: rango de fecha + ultima carga.
+let bitacoraRango='hoy';
+let bitacoraData=[];
+
+// Mapeo legible de las acciones del backend a label + icono.
+// Si agregamos eventos nuevos en el backend, sumarlos aqui para que
+// salgan con texto humano en vez del id crudo.
+const BITACORA_ACTIONS={
+  login_ok:        {label:'Inició sesión',           icon:'🔐', color:'#10b981'},
+  login_failed:    {label:'Intento de login fallido', icon:'⛔', color:'#ef4444'},
+  logout:          {label:'Cerró sesión',             icon:'🚪', color:'#94a3b8'},
+  password_change: {label:'Cambió su contraseña',    icon:'🔑', color:'#f59e0b'},
+  inventory_create:{label:'Creó accesorio',          icon:'➕', color:'#10b981'},
+  inventory_update:{label:'Editó accesorio',         icon:'✏️', color:'#3b82f6'},
+  inventory_delete:{label:'Borró accesorio',         icon:'🗑️', color:'#ef4444'},
+  inventory_bulk_update:{label:'Actualizó inventario por Excel', icon:'📥', color:'#8b5cf6'},
+  usage_create:    {label:'Registró uso',             icon:'✏️', color:'#10b981'},
+  usage_delete:    {label:'Borró registro de uso',    icon:'🗑️', color:'#ef4444'},
+  user_create:     {label:'Creó usuario',             icon:'👤', color:'#10b981'},
+  user_update:     {label:'Editó usuario',            icon:'✏️', color:'#3b82f6'},
+  user_delete:     {label:'Borró usuario',            icon:'🗑️', color:'#ef4444'},
+  caja_create:     {label:'Asignó caja',              icon:'🧰', color:'#10b981'},
+  caja_revisar:    {label:'Revisó caja al regreso',   icon:'✅', color:'#3b82f6'},
+  caja_delete:     {label:'Borró caja',               icon:'🗑️', color:'#ef4444'},
+  instalador_create:{label:'Creó instalador',         icon:'👷', color:'#10b981'},
+  instalador_update:{label:'Editó instalador',        icon:'✏️', color:'#3b82f6'},
+  instalador_delete:{label:'Borró instalador',        icon:'🗑️', color:'#ef4444'},
+  herramienta_create:{label:'Creó herramienta',       icon:'🛠', color:'#10b981'},
+  herramienta_update:{label:'Editó herramienta',      icon:'✏️', color:'#3b82f6'},
+  herramienta_delete:{label:'Borró herramienta',      icon:'🗑️', color:'#ef4444'},
+  plantilla_create:{label:'Creó plantilla',           icon:'📋', color:'#10b981'},
+  plantilla_update:{label:'Editó plantilla',          icon:'✏️', color:'#3b82f6'},
+  plantilla_delete:{label:'Borró plantilla',          icon:'🗑️', color:'#ef4444'},
+};
+
+async function loadBitacora(){
+  // Backend ya filtra por rango; el resto (categoria/usuario) lo hacemos
+  // en cliente para que cambiar el dropdown sea instantaneo. Si la cuenta
+  // crece a >5k entradas/dia, mover los filtros al server.
+  const params=new URLSearchParams({rango:bitacoraRango,limit:'2000'});
+  bitacoraData=await api('/api/audit-log?'+params.toString());
+  return bitacoraData;
+}
+function setBitacoraRango(r){
+  bitacoraRango=r;
+  ['Hoy','Sem','Mes','All'].forEach(x=>{
+    const k='biRango'+x;
+    const el=document.getElementById(k);
+    if(el) el.classList.remove('active');
+  });
+  const map={hoy:'biRangoHoy',semana:'biRangoSem',mes:'biRangoMes',all:'biRangoAll'};
+  const btn=document.getElementById(map[r]);
+  if(btn) btn.classList.add('active');
+  loadBitacora().then(renderBitacora);
+}
+function _bitacoraFmtTs(iso){
+  if(!iso) return '--';
+  try{
+    const d=new Date(iso);
+    const fecha=d.toLocaleDateString('es-HN',{day:'2-digit',month:'2-digit',year:'numeric'});
+    let hora=d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+    hora=hora.replace('AM','a.m.').replace('PM','p.m.');
+    return fecha+' '+hora;
+  }catch{return iso;}
+}
+function _bitacoraDescribeDetails(action,details){
+  // Devuelve un string legible. Devuelve '' si no hay nada util.
+  if(!details||typeof details!=='object') return '';
+  try{
+    if(action==='inventory_create'){
+      return `${esc(details.name||'')} (cód. ${esc(details.code||'')}, stock ${details.stock??0})`;
+    }
+    if(action==='inventory_update'){
+      const head=`${esc(details.name||'')} (cód. ${esc(details.code||'')})`;
+      const ch=details.changes||{};
+      const parts=[];
+      if(ch.stock) parts.push(`stock ${ch.stock.before} → <b>${ch.stock.after}</b>`);
+      if(ch.cost) parts.push(`costo L. ${Number(ch.cost.before||0).toFixed(2)} → <b>L. ${Number(ch.cost.after||0).toFixed(2)}</b>`);
+      if(ch.code) parts.push(`código ${esc(ch.code.before)} → ${esc(ch.code.after)}`);
+      if(ch.name) parts.push(`nombre actualizado`);
+      if(ch.cat)  parts.push(`categoría → ${esc(ch.cat.after||'')}`);
+      return head+(parts.length?(' · '+parts.join(' · ')):' · sin cambios netos');
+    }
+    if(action==='inventory_delete'){
+      return `${esc(details.name||'')} (cód. ${esc(details.code||'')}, tenía stock ${details.stock??0})`;
+    }
+    if(action==='inventory_bulk_update'){
+      const sample=(details.sample||[]).slice(0,3).map(s=>esc(s.name||s.code||'')).join(', ');
+      return `${details.updated||0} producto(s) actualizado(s)${sample?(' · ej: '+sample+(details.updated>3?'…':'')):''}`;
+    }
+    if(action==='usage_create'){
+      const items=details.items||[];
+      const total=items.reduce((a,it)=>a+Number(it.actualDeducted||0),0);
+      const sample=items.slice(0,3).map(it=>`${esc(it.name||'')} (-${it.actualDeducted||0})`).join(', ');
+      return `${total} unidad(es) descontada(s) · ${items.length} item(s)${sample?(' · '+sample):''}`;
+    }
+    if(action==='usage_delete'){
+      const items=details.items_restored||[];
+      const total=items.reduce((a,it)=>a+Number(it.restored||0),0);
+      return `Restauró ${total} unidad(es) al stock · registro original de ${esc(details.original_user||'')}`;
+    }
+    if(action==='user_create'){
+      return `${esc(details.username||'')} (rol ${esc(details.role||'')})`;
+    }
+    if(action==='user_update'){
+      const ch=details.changes||{};
+      const parts=[];
+      if(ch.username) parts.push(`username ${esc(ch.username.before)} → ${esc(ch.username.after)}`);
+      if(ch.role)     parts.push(`rol ${esc(ch.role.before)} → ${esc(ch.role.after)}`);
+      if(ch.password) parts.push(`contraseña actualizada`);
+      return `${esc(details.username||'')}${parts.length?(' · '+parts.join(' · ')):''}`;
+    }
+    if(action==='user_delete'){
+      return `${esc(details.username||'')} (rol ${esc(details.role||'')})`;
+    }
+    if(action==='caja_create'){
+      const inst=(details.instaladores||[]).map(esc).join(', ');
+      return `${(details.items||[]).length} herramienta(s) → ${inst||'(sin instaladores)'}`;
+    }
+    if(action==='caja_revisar'){
+      return `Entregadas ${details.total_entregadas||0} · Devueltas ${details.total_devueltas||0} · Faltantes ${details.total_faltantes||0}`;
+    }
+    if(action==='caja_delete'){
+      return `Caja del ${esc(details.fecha||'')} (creada por ${esc(details.creada_por||'')})`;
+    }
+    if(action==='instalador_create'||action==='herramienta_create'||action==='plantilla_create'){
+      return esc(details.nombre||'');
+    }
+    if(action==='instalador_delete'||action==='herramienta_delete'||action==='plantilla_delete'){
+      return esc(details.nombre||'');
+    }
+    if(action==='instalador_update'||action==='herramienta_update'){
+      const b=details.before||{}, a=details.after||{};
+      if(b.nombre!==a.nombre) return `${esc(b.nombre||'')} → ${esc(a.nombre||'')}`;
+      return `${esc(a.nombre||'')} (${a.activo?'activo':'inactivo'})`;
+    }
+    if(action==='plantilla_update'){
+      return `${esc(details.nombre||'')} · ${(details.items||[]).length} herramienta(s)`;
+    }
+    if(action==='login_failed'){
+      return `Razón: ${details.reason==='user_not_found'?'usuario no existe':'contraseña incorrecta'}`;
+    }
+    if(action==='login_ok'){
+      return `Rol ${esc(details.role||'')}`;
+    }
+  }catch{}
+  return '';
+}
+function renderBitacora(){
+  const list=document.getElementById('bitacoraList');
+  if(!bitacoraData) bitacoraData=[];
+  // Poblar dropdown de usuarios con los que aparecen en los datos.
+  const userSel=document.getElementById('biUsuario');
+  const prevUser=userSel.value;
+  const usuarios=[...new Set(bitacoraData.map(r=>r.username||'(anónimo)'))].sort();
+  userSel.innerHTML='<option value="">Todos los usuarios</option>'+
+    usuarios.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join('');
+  if(usuarios.includes(prevUser)) userSel.value=prevUser;
+  const cat=document.getElementById('biCategoria').value;
+  const usr=userSel.value;
+  // Categoria -> set de actions (espejo del backend para filtrar en cliente).
+  const CAT_MAP={
+    login:['login_ok','login_failed','logout','password_change'],
+    inventario:['inventory_create','inventory_update','inventory_delete','inventory_bulk_update'],
+    usos:['usage_create','usage_delete'],
+    usuarios:['user_create','user_update','user_delete'],
+    cajas:['caja_create','caja_revisar','caja_delete','instalador_create','instalador_update','instalador_delete','herramienta_create','herramienta_update','herramienta_delete','plantilla_create','plantilla_update','plantilla_delete'],
+  };
+  let rows=bitacoraData;
+  if(cat&&CAT_MAP[cat]) rows=rows.filter(r=>CAT_MAP[cat].includes(r.action));
+  if(usr) rows=rows.filter(r=>(r.username||'(anónimo)')===usr);
+  if(rows.length===0){
+    list.innerHTML='<div style="text-align:center;color:var(--text2);padding:30px;">No hay actividad en este filtro.</div>';
+    return;
+  }
+  list.innerHTML=rows.map(r=>{
+    const meta=BITACORA_ACTIONS[r.action]||{label:r.action,icon:'•',color:'#94a3b8'};
+    const desc=_bitacoraDescribeDetails(r.action,r.details);
+    return `<div class="hist-item" style="border-left:3px solid ${meta.color};">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+        <div style="font-weight:600;">${meta.icon} ${esc(meta.label)}</div>
+        <div style="color:var(--text2);font-size:12px;">${esc(_bitacoraFmtTs(r.ts))}</div>
+      </div>
+      <div style="margin-top:4px;font-size:13px;">
+        <span style="color:var(--text2);">por</span> <b>${esc(r.username||'(anónimo)')}</b>
+        ${desc?(' · '+desc):''}
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // ── UTILS ─────────────────────────────────────────────────
