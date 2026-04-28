@@ -339,7 +339,7 @@ h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
             oninput="onBitacoraAccesorioInput()" onfocus="onBitacoraAccesorioInput()" onblur="setTimeout(closeBitacoraSuggest,150)">
           <button class="btn btn-secondary" id="biAccesorioClear" style="display:none;" onclick="clearBitacoraAccesorio()">✕</button>
         </div>
-        <div id="biAccesorioSuggest" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:50;background:var(--card);border:1px solid var(--border,#2a3142);border-radius:8px;max-height:240px;overflow:auto;margin-top:4px;box-shadow:0 4px 12px rgba(0,0,0,0.3);"></div>
+        <div id="biAccesorioSuggest" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:260px;overflow:auto;margin-top:4px;box-shadow:0 8px 24px rgba(0,0,0,0.6);"></div>
         <div id="biAccesorioPill" style="display:none;margin-top:6px;font-size:13px;color:var(--text2);"></div>
       </div>
       <div id="bitacoraList"></div>
@@ -2379,9 +2379,9 @@ function onBitacoraAccesorioInput(){
   }
   box.innerHTML=matches.map(it=>{
     const code=esc(it.code||''); const name=esc(it.name||'');
-    return `<div class="bi-sugg" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border,#2a3142);"
+    return `<div class="bi-sugg" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);background:var(--surface);"
       onmousedown="pickBitacoraAccesorio('${code.replace(/'/g,"\\'")}','${name.replace(/'/g,"\\'")}')">
-      <div style="font-weight:600;font-size:13px;">${name}</div>
+      <div style="font-weight:600;font-size:13px;color:var(--text);">${name}</div>
       <div style="color:var(--text2);font-size:11px;">cód. ${code}</div>
     </div>`;
   }).join('');
