@@ -2467,14 +2467,15 @@ function _bitacoraDescribeDetails(action,details){
       const head=esc(details.name||'');
       const ch=details.changes||{};
       const parts=[];
-      if(ch.stock) parts.push(`stock ${ch.stock.before} → <b>${ch.stock.after}</b>`);
-      if(ch.cost) parts.push(`costo L. ${Number(ch.cost.before||0).toFixed(2)} → <b>L. ${Number(ch.cost.after||0).toFixed(2)}</b>`);
-      if(ch.code) parts.push(`código ${esc(ch.code.before)} → ${esc(ch.code.after)}`);
-      if(ch.name) parts.push(`nombre actualizado`);
-      if(ch.cat)  parts.push(`categoría → ${esc(ch.cat.after||'')}`);
-      // Frase corrida (sin '·' separadores), ej:
-      // 'ACEITE MINERAL ... 1L stock 91 → 90 costo L. 177.59 → L. 177.58'
-      return head+(parts.length?(' '+parts.join(' ')):' (sin cambios netos)');
+      if(ch.stock) parts.push(`Stock ${ch.stock.before} → <b>${ch.stock.after}</b>`);
+      if(ch.cost) parts.push(`Costo L. ${Number(ch.cost.before||0).toFixed(2)} → <b>L. ${Number(ch.cost.after||0).toFixed(2)}</b>`);
+      if(ch.code) parts.push(`Código ${esc(ch.code.before)} → ${esc(ch.code.after)}`);
+      if(ch.name) parts.push(`Nombre actualizado`);
+      if(ch.cat)  parts.push(`Categoría → ${esc(ch.cat.after||'')}`);
+      // Cada cambio en su propia linea: nombre del accesorio + un
+      // renglon por cada campo modificado (Stock/Costo/Codigo/etc).
+      if(parts.length===0) return head+' (sin cambios netos)';
+      return head+'<br>'+parts.join('<br>');
     }
     if(action==='inventory_delete'){
       return `${esc(details.name||'')} (cód. ${esc(details.code||'')}, tenía stock ${details.stock??0})`;
