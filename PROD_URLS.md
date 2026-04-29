@@ -2,17 +2,16 @@
 
 | Pieza                  | URL                                                         |
 |------------------------|-------------------------------------------------------------|
-| App (frontend)         | https://frontend-deploy-ijnxzavl.devinapps.com              |
+| App (frontend)         | https://frontend-mmahpuvv.devinapps.com                     |
 | API (backend)          | https://inventario-backend-nkpdbvdn.fly.dev                 |
 | Documentación API      | https://inventario-backend-nkpdbvdn.fly.dev/docs            |
 | Healthcheck            | https://inventario-backend-nkpdbvdn.fly.dev/api/health      |
 
-## Usuarios iniciales sembrados automáticamente
+## Usuario inicial sembrado automáticamente
 
-| Usuario    | Contraseña  | Rol        |
-|------------|-------------|------------|
-| `admin`    | `admin123`  | admin      |
-| `empleado` | `emp123`    | empleado   |
+| Usuario | Contraseña | Rol   |
+|---------|------------|-------|
+| `admin` | `admin123` | admin |
 
 ## Persistencia
 
