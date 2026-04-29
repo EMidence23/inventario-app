@@ -93,13 +93,25 @@ def create_usage(
         # el costo real al que se uso el accesorio, sin verse afectado por
         # cambios futuros del costo en INVENTARIO.
         unit_cost = float(inv.cost or 0.0) if inv is not None else 0.0
+        new_stock = available - actual
         if inv is not None:
-            inv.stock = available - actual
+            inv.stock = new_stock
         data = it.model_dump()
         data["actualDeducted"] = actual
         data["unit_cost"] = unit_cost
+        # Snapshot de stock antes/despues solo para el audit. No se
+        # persiste en items_json del UsageRecord para no inflar la
+        # respuesta del HISTORIAL — basta con verlo en MOVIMIENTOS.
+        data["_stock_before"] = available
+        data["_stock_after"] = new_stock
         persisted_items.append(data)
-    record.items_json = json.dumps(persisted_items)
+    # items_json del registro NO debe incluir los snapshots de stock
+    # (son ruido para HISTORIAL). Los retiramos aqui antes de guardar.
+    items_to_save = [
+        {k: v for k, v in d.items() if not k.startswith("_")}
+        for d in persisted_items
+    ]
+    record.items_json = json.dumps(items_to_save)
     db.add(record)
     db.commit()
     db.refresh(record)
@@ -117,6 +129,8 @@ def create_usage(
                     "name": it.get("name", ""),
                     "qtyUsed": int(it.get("qtyUsed", 0)),
                     "actualDeducted": int(it.get("actualDeducted", 0)),
+                    "stock_before": int(it.get("_stock_before", 0)),
+                    "stock_after": int(it.get("_stock_after", 0)),
                 }
                 for it in persisted_items
             ],
