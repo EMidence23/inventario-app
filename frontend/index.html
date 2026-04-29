@@ -2581,10 +2581,8 @@ function renderBitacora(){
     // que titulo, hora y descripcion vayan apilados en una columna.
     return `<div class="hist-item" style="border-left:3px solid ${meta.color};align-items:stretch;">
       <div style="flex:1;min-width:0;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
-          <div style="font-weight:600;">${titulo}</div>
-          <div style="color:var(--text2);font-size:12px;white-space:nowrap;">${esc(_bitacoraFmtTs(r.ts))}</div>
-        </div>
+        <div style="font-weight:600;">${titulo}</div>
+        <div style="margin-top:4px;color:var(--text2);font-size:12px;">${esc(_bitacoraFmtTs(r.ts))}</div>
         ${desc?`<div style="margin-top:6px;font-size:13px;">${desc}</div>`:''}
       </div>
     </div>`;
