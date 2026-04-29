@@ -9,14 +9,13 @@ Originalmente era un HTML con `localStorage` (cada navegador veía sus propios d
 - **App (frontend):** ver [`PROD_URLS.md`](./PROD_URLS.md)
 - **API (backend):** ver [`PROD_URLS.md`](./PROD_URLS.md)
 
-## 👤 Usuarios iniciales
+## 👤 Usuario inicial
 
 | Usuario    | Contraseña | Rol        |
 |------------|------------|------------|
 | `admin`    | `admin123` | admin      |
-| `empleado` | `emp123`   | empleado   |
 
-> ⚠️ Cambia estas contraseñas cuanto antes desde la pestaña **USUARIOS** (crea un admin nuevo, cierra sesión, entra con el nuevo admin y elimina `admin`/`empleado` originales).
+> ⚠️ Cambia esta contraseña cuanto antes desde la pestaña **USUARIOS** (o crea un admin nuevo con otra contraseña y elimina `admin`). Desde la app podés crear usuarios adicionales con rol `admin` o `empleado`.
 
 ## 🧩 Arquitectura
 

@@ -183,23 +183,16 @@ def _purge_audit_non_inventory_entries() -> None:
 
 
 def _seed_default_users() -> None:
-    """Crea los usuarios iniciales si la tabla de usuarios esta vacia."""
+    """Crea el usuario admin inicial si la tabla de usuarios esta vacia."""
     with SessionLocal() as db:
         if db.query(User).count() > 0:
             return
-        db.add_all(
-            [
-                User(
-                    username="admin",
-                    password_hash=hash_password("admin123"),
-                    role="admin",
-                ),
-                User(
-                    username="empleado",
-                    password_hash=hash_password("emp123"),
-                    role="empleado",
-                ),
-            ]
+        db.add(
+            User(
+                username="admin",
+                password_hash=hash_password("admin123"),
+                role="admin",
+            )
         )
         db.commit()
 
