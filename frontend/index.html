@@ -1294,7 +1294,7 @@ function renderHistHoy(){
       <div class="hist-item">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)}${isAdmin?` · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.total>0?s.subtotal/s.total:0))} c/u c/ISV prom.)</span>`:''}</div>
+          <div class="item-code">${esc(s.code)}${isAdmin?` · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.cost))} c/u c/ISV)</span>`:''}</div>
         </div>
         <div class="hist-qty">${s.total}</div>
       </div>`).join('')}
@@ -1398,7 +1398,7 @@ function renderHistSemana(){
       <div class="hist-item">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.total>0?s.subtotal/s.total:0))} c/u c/ISV prom.)</span></div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.cost))} c/u c/ISV)</span></div>
         </div>
         <div class="hist-qty">${s.total}</div>
       </div>`).join('')}
@@ -1517,7 +1517,7 @@ function renderHistMes(){
       <div class="hist-item">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.total>0?s.subtotal/s.total:0))} c/u c/ISV prom.)</span></div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.cost))} c/u c/ISV)</span></div>
         </div>
         <div class="hist-qty">${s.total}</div>
       </div>`).join('')}
