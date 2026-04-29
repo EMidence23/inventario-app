@@ -879,6 +879,7 @@ function renderInventory(){
         </div>
       </div>
       ${isAdmin?`<div class="item-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openMovimientosForItem(${i.id})" title="Ver movimientos">📜</button>
         <button class="btn btn-secondary btn-sm" onclick="openEditModal(${i.id})">✏️</button>
         <button class="btn btn-danger btn-sm" onclick="deleteItem(${i.id})">🗑️</button>
       </div>`:''}
@@ -2401,6 +2402,27 @@ async function pickBitacoraAccesorio(code,name){
   pill.innerHTML='Mostrando todos los movimientos de <b>'+esc(name)+'</b> (toda la historia).';
   await loadBitacora();
   renderBitacora();
+}
+// Atajo desde la lista de inventario: pre-selecciona un accesorio
+// y abre la pestania MOVIMIENTOS con su historial completo.
+function openMovimientosForItem(itemId){
+  const inv=getInventory();
+  const it=inv.find(x=>x.id===itemId);
+  if(!it){showToast('Accesorio no encontrado',true);return;}
+  const code=String(it.code||''); const name=String(it.name||'');
+  bitacoraAccesorio={code,name};
+  // Sincronizamos el UI del filtro antes de cambiar de pestania asi
+  // cuando el usuario llega a MOVIMIENTOS ya ve el chip activo.
+  const inp=document.getElementById('biAccesorioInput');
+  if(inp){inp.value=name+' (cód. '+code+')'; inp.disabled=true;}
+  const clr=document.getElementById('biAccesorioClear');
+  if(clr) clr.style.display='inline-flex';
+  const pill=document.getElementById('biAccesorioPill');
+  if(pill){
+    pill.style.display='block';
+    pill.innerHTML='Mostrando todos los movimientos de <b>'+esc(name)+'</b> (toda la historia).';
+  }
+  switchTab('Bitacora');
 }
 async function clearBitacoraAccesorio(){
   bitacoraAccesorio=null;
