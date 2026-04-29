@@ -69,21 +69,27 @@ def list_audit(
 ) -> list[AuditLogOut]:
     q = db.query(AuditLog).order_by(AuditLog.ts.desc(), AuditLog.id.desc())
 
-    # Filtro por rango de fecha. Usamos UTC porque ts se guarda en UTC;
-    # esto es una aproximacion (un evento de las 23h de Honduras del dia
-    # X se guarda como 5h UTC del dia X+1). Para un MVP es suficiente; el
-    # frontend muestra la hora local correcta y el filtro de "hoy" en
-    # general atrapa lo que el usuario espera.
-    now = datetime.utcnow()
+    # Filtro por rango de fecha. Los timestamps se guardan en UTC pero el
+    # usuario piensa en hora de Honduras (UTC-6). Si calculamos "hoy" con
+    # la fecha UTC, despues de las 18:00 hora Honduras la fecha UTC ya es
+    # del dia siguiente y el filtro deja afuera todo lo que se hizo
+    # durante el dia. Hacemos los calculos en hora local de Honduras y
+    # luego convertimos los limites de vuelta a UTC.
+    HN_OFFSET = timedelta(hours=-6)
+    now_utc = datetime.utcnow()
+    now_hn = now_utc + HN_OFFSET
     if rango == "hoy":
-        start = datetime.combine(now.date(), datetime.min.time())
-        q = q.filter(AuditLog.ts >= start)
+        start_hn = datetime.combine(now_hn.date(), datetime.min.time())
+        start_utc = start_hn - HN_OFFSET  # = start_hn + 6h
+        q = q.filter(AuditLog.ts >= start_utc)
     elif rango == "semana":
-        start = datetime.combine(now.date() - timedelta(days=6), datetime.min.time())
-        q = q.filter(AuditLog.ts >= start)
+        start_hn = datetime.combine(now_hn.date() - timedelta(days=6), datetime.min.time())
+        start_utc = start_hn - HN_OFFSET
+        q = q.filter(AuditLog.ts >= start_utc)
     elif rango == "mes":
-        start = datetime.combine(now.date() - timedelta(days=30), datetime.min.time())
-        q = q.filter(AuditLog.ts >= start)
+        start_hn = datetime.combine(now_hn.date() - timedelta(days=30), datetime.min.time())
+        start_utc = start_hn - HN_OFFSET
+        q = q.filter(AuditLog.ts >= start_utc)
     # 'all': sin filtro de fecha.
 
     if usuario:
