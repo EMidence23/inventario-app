@@ -2562,15 +2562,30 @@ function renderBitacora(){
   }
   list.innerHTML=rows.map(r=>{
     const meta=BITACORA_ACTIONS[r.action]||{label:r.action,icon:'•',color:'#94a3b8'};
+    const usuario=esc(r.username||'(anónimo)');
+    // Etiqueta con autor integrado: 'Accesorio editado por Ariel',
+    // 'Registro hecho por Ariel', etc. Es mas natural de leer que
+    // tener el autor en una linea aparte.
+    const labelMap={
+      inventory_create:'Accesorio creado',
+      inventory_update:'Accesorio editado',
+      inventory_delete:'Accesorio borrado',
+      inventory_bulk_update:'Inventario actualizado por Excel',
+      usage_create:'Registro hecho',
+      usage_delete:'Registro borrado',
+    };
+    const baseLabel=labelMap[r.action]||meta.label;
+    const titulo=`${meta.icon} ${esc(baseLabel)} por <b>${usuario}</b>`;
     const desc=_bitacoraDescribeDetails(r.action,r.details);
-    return `<div class="hist-item" style="border-left:3px solid ${meta.color};">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
-        <div style="font-weight:600;">${meta.icon} ${esc(meta.label)}</div>
-        <div style="color:var(--text2);font-size:12px;">${esc(_bitacoraFmtTs(r.ts))}</div>
-      </div>
-      ${desc?`<div style="margin-top:6px;font-size:13px;">${desc}</div>`:''}
-      <div style="margin-top:6px;font-size:12px;color:var(--text2);">
-        por <b style="color:var(--text);">${esc(r.username||'(anónimo)')}</b>
+    // .hist-item es flex-row: envolvemos todo en un solo flex:1 para
+    // que titulo, hora y descripcion vayan apilados en una columna.
+    return `<div class="hist-item" style="border-left:3px solid ${meta.color};align-items:stretch;">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+          <div style="font-weight:600;">${titulo}</div>
+          <div style="color:var(--text2);font-size:12px;white-space:nowrap;">${esc(_bitacoraFmtTs(r.ts))}</div>
+        </div>
+        ${desc?`<div style="margin-top:6px;font-size:13px;">${desc}</div>`:''}
       </div>
     </div>`;
   }).join('');
