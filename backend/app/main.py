@@ -108,7 +108,7 @@ def _seed_initial_costs_via_sql(conn) -> None:
     """
     rows = conn.execute(text("SELECT id, code FROM inventory_items")).fetchall()
     for r in rows:
-        rng = random.Random(f"vimeco-cost-seed-{r[0]}-{r[1]}")
+        rng = random.Random(f"inventario-cost-seed-{r[0]}-{r[1]}")
         val = round(rng.uniform(5.0, 1500.0), 2)
         conn.execute(
             text("UPDATE inventory_items SET cost = :c WHERE id = :i"),

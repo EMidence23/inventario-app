@@ -1,7 +1,7 @@
 [project]
 name = "inventario-backend"
 version = "0.1.0"
-description = "API de Control de Inventario (VIMECO)"
+description = "API de Control de Inventario"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.110.0",
