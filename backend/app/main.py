@@ -12,6 +12,7 @@ from .auth import hash_password
 from .config import settings
 from .db import Base, SessionLocal, engine
 from .models import User
+from .routes import admin as admin_routes
 from .routes import audit_log as audit_log_routes
 from .routes import auth as auth_routes
 from .routes import cajas as cajas_routes
@@ -220,6 +221,7 @@ def create_app() -> FastAPI:
     app.include_router(usage_routes.router)
     app.include_router(cajas_routes.router)
     app.include_router(audit_log_routes.router)
+    app.include_router(admin_routes.router)
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
