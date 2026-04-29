@@ -303,8 +303,14 @@ def create_caja(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> CajaHerramientaOut:
-    # Fecha: si no viene, usar hoy UTC (el frontend la manda segun local).
-    fecha = payload.fecha or datetime.utcnow().strftime("%Y-%m-%d")
+    # Fecha: si no viene, calcularla en hora Honduras (UTC-6). NO podemos
+    # usar datetime.utcnow().strftime("%Y-%m-%d") porque despues de las
+    # 18:00 hora Honduras la fecha UTC ya es del dia siguiente, y la caja
+    # se guardaria con la fecha de "manana" — quedando invisible para el
+    # filtro de empleado que tambien calcula "hoy" en hora Honduras.
+    from datetime import timedelta
+    HN_OFFSET = timedelta(hours=-6)
+    fecha = payload.fecha or (datetime.utcnow() + HN_OFFSET).strftime("%Y-%m-%d")
 
     # Validar instaladores.
     inst_rows = (
