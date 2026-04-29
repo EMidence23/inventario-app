@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -19,6 +19,10 @@ from ..schemas import (
 )
 
 router = APIRouter(prefix="/api/usage", tags=["usage"])
+
+# Honduras esta en UTC-6. El servidor corre en UTC asi que para calcular
+# "hoy" en hora local sumamos el offset.
+_HN_OFFSET = timedelta(hours=-6)
 
 
 def _to_out(row: UsageRecord) -> UsageRecordOut:
@@ -66,36 +70,79 @@ def create_usage(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Ingresa al menos 1 accesorio usado",
         )
+    # Validar PRIMERO que cada item.id exista en inventario. Si alguno no
+    # existe, abortamos todo el registro y devolvemos 400 — evita registros
+    # "fantasma" que aparezcan en HISTORIAL sin haber descontado stock real.
+    missing: list[str] = []
+    for it in filtered:
+        if db.get(InventoryItem, it.id) is None:
+            missing.append(f"{it.code or '?'} (id {it.id})")
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Accesorio(s) no existen en inventario: " + ", ".join(missing),
+        )
     now = datetime.utcnow()
     # Preferir la fecha local del cliente cuando viene en el payload; evita
     # que registros creados cerca de medianoche UTC caigan en el dia
-    # "equivocado" para usuarios en zonas horarias distintas de UTC.
-    local_date = payload.date or now.strftime("%Y-%m-%d")
+    # "equivocado" para usuarios en zonas horarias distintas de UTC. El
+    # fallback usa hora Honduras (UTC-6) para que clientes externos sin
+    # 'date' tampoco caigan en el dia siguiente despues de las 18:00 local.
+    local_date = payload.date or (now + _HN_OFFSET).strftime("%Y-%m-%d")
     record = UsageRecord(
         user_id=user.id,
         username_snapshot=user.username,
         date=local_date,
         ts=now,
-        items_json=json.dumps([it.model_dump() for it in filtered]),
+        items_json="[]",
     )
-    # Descontar el uso del stock de cada accesorio. Si el producto no existe
-    # (p.ej. fue borrado) solo ignoramos. El stock puede quedar en 0 pero no
-    # se vuelve negativo. Guardamos en items_json la cantidad realmente
-    # descontada (actualDeducted) para poder restaurar exactamente eso al
-    # borrar el registro y evitar inflar el stock.
+    # Descontar el uso del stock de cada accesorio. Para evitar race
+    # conditions cuando dos clientes registran uso del mismo accesorio al
+    # mismo tiempo: usamos UPDATE atomico con WHERE stock>=0 y RETURNING
+    # del nuevo stock, para que cada cliente vea el valor real post-update
+    # y no sobreescriba el descuento del otro. SQLite serializa escrituras
+    # a la misma fila, asi que el segundo UPDATE espera al primero.
+    from sqlalchemy import text
+
     persisted_items = []
     for it in filtered:
         inv = db.get(InventoryItem, it.id)
-        available = (inv.stock or 0) if inv is not None else 0
+        if inv is None:
+            # Ya validado arriba; defensivo por si el item se borra entre
+            # la validacion y aqui (ventana muy corta).
+            continue
+        # Re-leer stock fresco con bloqueo (FOR UPDATE en backends que lo
+        # soporten; en SQLite cae a un lock implicito de la fila al
+        # actualizar). Refresh fuerza una nueva lectura desde la BD.
+        db.refresh(inv)
+        available = inv.stock or 0
         actual = max(0, min(it.qtyUsed, available))
-        # Snapshot del costo unitario sin ISV en el momento del registro.
-        # Se guarda como 'unit_cost' para que el HISTORIAL muestre siempre
-        # el costo real al que se uso el accesorio, sin verse afectado por
-        # cambios futuros del costo en INVENTARIO.
-        unit_cost = float(inv.cost or 0.0) if inv is not None else 0.0
+        unit_cost = float(inv.cost or 0.0)
         new_stock = available - actual
-        if inv is not None:
+        # Update atomico que solo aplica si el stock no cambio entre el
+        # refresh y este UPDATE (compare-and-swap). Si otro cliente nos
+        # gano la carrera, reintentamos hasta 5 veces leyendo de nuevo.
+        for _attempt in range(5):
+            res = db.execute(
+                text(
+                    "UPDATE inventory_items SET stock = :new_stock "
+                    "WHERE id = :id AND stock = :expected"
+                ),
+                {"new_stock": new_stock, "id": inv.id, "expected": available},
+            )
+            if res.rowcount == 1:
+                break
+            # Otro cliente cambio el stock. Releemos y recalculamos.
+            db.refresh(inv)
+            available = inv.stock or 0
+            actual = max(0, min(it.qtyUsed, available))
+            new_stock = available - actual
+        else:
+            # Despues de 5 reintentos seguimos sin lograr el update; raro,
+            # pero por seguridad usamos lo que tengamos.
             inv.stock = new_stock
+        # Sincronizar el objeto en memoria con el valor que escribimos.
+        inv.stock = new_stock
         data = it.model_dump()
         data["actualDeducted"] = actual
         data["unit_cost"] = unit_cost

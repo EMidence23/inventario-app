@@ -121,15 +121,29 @@ def list_audit(
                 "usage_delete",
             ]
             q = q.filter(AuditLog.action.in_(relevantes))
+            # Escapar metacaracteres de LIKE (%, _, \) para que no actuen
+            # como wildcards si el codigo del usuario los contiene.
+            esc = (
+                code.replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_")
+            )
             # Buscar el code como valor de la propiedad "code" en el JSON.
-            # Las dos formas que aparecen en los detalles:
-            #   "code":"NB-ER04-TL600"   (inventory create/update/delete + sample bulk + items uso)
-            # Cubrimos ambas y dejamos que SQLite haga el match.
-            like_pattern = f'%"code": "{code}"%'
-            like_pattern2 = f'%"code":"{code}"%'  # por si algun dump no tiene espacio.
+            # Cubrimos las formas con/sin espacio despues de los dos puntos.
+            # Para inventory_bulk_update tambien cubrimos el campo
+            # affected_codes (lista plana de TODOS los codigos afectados,
+            # no solo el sample) que se anadio para no perder eventos
+            # cuando el bulk modifica >25 productos.
+            like1 = f'%"code": "{esc}"%'
+            like2 = f'%"code":"{esc}"%'
+            like3 = f'%"{esc}"%'  # match dentro de affected_codes (lista plana de strings)
             q = q.filter(
-                (AuditLog.details_json.like(like_pattern))
-                | (AuditLog.details_json.like(like_pattern2))
+                AuditLog.details_json.like(like1, escape="\\")
+                | AuditLog.details_json.like(like2, escape="\\")
+                | (
+                    (AuditLog.action == "inventory_bulk_update")
+                    & AuditLog.details_json.like(like3, escape="\\")
+                )
             )
 
     rows = q.limit(limit).all()

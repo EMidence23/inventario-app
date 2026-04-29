@@ -1294,7 +1294,7 @@ function renderHistHoy(){
       <div class="hist-item">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)}${isAdmin?` · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.cost))} c/u c/ISV)</span>`:''}</div>
+          <div class="item-code">${esc(s.code)}${isAdmin?` · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.total>0?s.subtotal/s.total:0))} c/u c/ISV prom.)</span>`:''}</div>
         </div>
         <div class="hist-qty">${s.total}</div>
       </div>`).join('')}
@@ -1314,14 +1314,28 @@ function toggleUsoH(id){
 }
 
 async function deleteUsageRecord(id){
-  if(!confirm('¿Eliminar este registro? Se quitará del historial y de los reportes.')) return;
+  // Avisar al admin si alguno de los accesorios del registro ya no existe
+  // en el inventario \u2014 en ese caso el stock no podra ser restaurado para
+  // ese accesorio (porque ya fue borrado) y solo se borra el registro.
+  const usage=getUsage().find(u=>u.id===id);
+  const inv=getInventory();
+  const invIds=new Set(inv.map(x=>x.id));
+  const missing=usage?usage.items.filter(it=>!invIds.has(it.id)):[];
+  let msg='¿Eliminar este registro? Se quitará del historial y de los reportes.';
+  if(missing.length>0){
+    const list=missing.map(m=>esc(m.name||m.code||'?')).join(', ');
+    msg='⚠️ Atención: este registro incluye accesorios que ya no existen en el inventario ('+list+'). El stock NO podrá ser restaurado para esos accesorios (porque fueron borrados). El registro solo se quitará del historial.\n\n¿Continuar?';
+  }
+  if(!confirm(msg)) return;
   try{
     showLoader(true);
     await api('/api/usage/'+id,{method:'DELETE'});
     // El backend devuelve las unidades al stock; recargamos inventario para
     // que la UI refleje el nuevo valor.
     await Promise.all([loadUsage(),loadInventory()]);
-    showToast('🗑️ Registro eliminado');
+    showToast(missing.length>0
+      ?'🗑️ Registro eliminado (sin restaurar accesorios borrados)'
+      :'🗑️ Registro eliminado');
     renderHistorial();
     renderDashboard();
   }catch(err){
@@ -1384,7 +1398,7 @@ function renderHistSemana(){
       <div class="hist-item">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.cost))} c/u c/ISV)</span></div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.total>0?s.subtotal/s.total:0))} c/u c/ISV prom.)</span></div>
         </div>
         <div class="hist-qty">${s.total}</div>
       </div>`).join('')}
@@ -1503,7 +1517,7 @@ function renderHistMes(){
       <div class="hist-item">
         <div class="item-info">
           <div class="item-name">${esc(s.name)}</div>
-          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.cost))} c/u c/ISV)</span></div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.total>0?s.subtotal/s.total:0))} c/u c/ISV prom.)</span></div>
         </div>
         <div class="hist-qty">${s.total}</div>
       </div>`).join('')}

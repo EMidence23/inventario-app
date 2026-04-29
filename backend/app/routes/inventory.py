@@ -318,10 +318,19 @@ def bulk_update(
                     "no_changes": no_changes,
                     "invalid": invalid,
                     "isv_rate": payload.isv_rate,
+                    # 'sample' = primeros 25 con detalle (para mostrar en
+                    # MOVIMIENTOS sin saturar la UI).
                     "sample": [
                         {"code": r.code, "name": r.name, "changes": r.changes}
                         for r in results if r.action == "updated"
                     ][:25],
+                    # 'affected_codes' = lista plana de TODOS los codigos
+                    # actualizados (sin limite). Permite que la busqueda
+                    # por accesorio en MOVIMIENTOS encuentre el evento
+                    # aunque el item no este en el sample[0..24].
+                    "affected_codes": [
+                        r.code for r in results if r.action == "updated"
+                    ],
                 },
             )
 
