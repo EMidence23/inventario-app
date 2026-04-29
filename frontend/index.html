@@ -2472,7 +2472,9 @@ function _bitacoraDescribeDetails(action,details){
       if(ch.code) parts.push(`código ${esc(ch.code.before)} → ${esc(ch.code.after)}`);
       if(ch.name) parts.push(`nombre actualizado`);
       if(ch.cat)  parts.push(`categoría → ${esc(ch.cat.after||'')}`);
-      return head+(parts.length?(' · '+parts.join(' · ')):' · sin cambios netos');
+      // Frase corrida (sin '·' separadores), ej:
+      // 'ACEITE MINERAL ... 1L stock 91 → 90 costo L. 177.59 → L. 177.58'
+      return head+(parts.length?(' '+parts.join(' ')):' (sin cambios netos)');
     }
     if(action==='inventory_delete'){
       return `${esc(details.name||'')} (cód. ${esc(details.code||'')}, tenía stock ${details.stock??0})`;
