@@ -78,15 +78,20 @@ def list_audit(
     HN_OFFSET = timedelta(hours=-6)
     now_utc = datetime.utcnow()
     now_hn = now_utc + HN_OFFSET
-    if rango == "hoy":
+    # Cuando se filtra por accesorio el frontend ya manda rango=all, pero
+    # si alguien llama al endpoint sin pasar rango (default 'hoy'), igual
+    # queremos devolver toda la historia del accesorio porque ese es el
+    # uso natural del filtro.
+    effective_rango = "all" if accesorio_code else rango
+    if effective_rango == "hoy":
         start_hn = datetime.combine(now_hn.date(), datetime.min.time())
         start_utc = start_hn - HN_OFFSET  # = start_hn + 6h
         q = q.filter(AuditLog.ts >= start_utc)
-    elif rango == "semana":
+    elif effective_rango == "semana":
         start_hn = datetime.combine(now_hn.date() - timedelta(days=6), datetime.min.time())
         start_utc = start_hn - HN_OFFSET
         q = q.filter(AuditLog.ts >= start_utc)
-    elif rango == "mes":
+    elif effective_rango == "mes":
         start_hn = datetime.combine(now_hn.date() - timedelta(days=30), datetime.min.time())
         start_utc = start_hn - HN_OFFSET
         q = q.filter(AuditLog.ts >= start_utc)

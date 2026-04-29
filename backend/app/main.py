@@ -116,6 +116,53 @@ def _seed_initial_costs_via_sql(conn) -> None:
         )
 
 
+def _backfill_usage_unit_cost() -> None:
+    """Migracion one-shot: para que el HISTORIAL muestre el costo real
+    al que se uso cada accesorio, cada item dentro de items_json
+    necesita guardar 'unit_cost' (el costo sin ISV congelado en el
+    momento del registro). Los registros viejos se llenan con el
+    costo actual del inventario (es lo unico que tenemos: ya no
+    podemos saber el costo historico de hace dias o semanas).
+
+    A partir de este backfill, todo registro nuevo guarda su propio
+    snapshot al crearse y nunca se ve afectado por cambios futuros
+    de costo.
+
+    Es idempotente: items que ya tienen unit_cost no se tocan."""
+    import json
+    try:
+        with engine.begin() as conn:
+            # Mapa code -> cost actual del inventario.
+            inv_rows = conn.execute(text("SELECT code, cost FROM inventory_items")).fetchall()
+            cost_by_code = {row[0]: float(row[1] or 0.0) for row in inv_rows}
+            usage_rows = conn.execute(text("SELECT id, items_json FROM usage_records")).fetchall()
+            for row in usage_rows:
+                rid, raw = row[0], row[1] or "[]"
+                try:
+                    items = json.loads(raw)
+                except (TypeError, ValueError):
+                    continue
+                if not isinstance(items, list):
+                    continue
+                changed = False
+                for it in items:
+                    if not isinstance(it, dict):
+                        continue
+                    if "unit_cost" in it and it["unit_cost"] is not None:
+                        continue
+                    code = str(it.get("code") or "")
+                    it["unit_cost"] = cost_by_code.get(code, 0.0)
+                    changed = True
+                if changed:
+                    conn.execute(
+                        text("UPDATE usage_records SET items_json = :j WHERE id = :i"),
+                        {"j": json.dumps(items), "i": rid},
+                    )
+    except Exception:
+        # Falla silenciosa para no romper el arranque.
+        pass
+
+
 def _purge_audit_non_inventory_entries() -> None:
     """Limpieza one-shot: la pagina de MOVIMIENTOS solo muestra eventos
     de inventario y registros de uso. Borramos cualquier entrada de
@@ -170,6 +217,7 @@ def create_app() -> FastAPI:
 
     Base.metadata.create_all(bind=engine)
     _migrate_add_missing_columns()
+    _backfill_usage_unit_cost()
     _purge_audit_non_inventory_entries()
     _seed_default_users()
 

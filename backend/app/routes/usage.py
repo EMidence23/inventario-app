@@ -29,6 +29,7 @@ def _to_out(row: UsageRecord) -> UsageRecordOut:
             code=str(it.get("code", "")),
             name=str(it.get("name", "")),
             qtyUsed=int(it.get("qtyUsed", 0)),
+            unit_cost=float(it.get("unit_cost") or 0.0),
         )
         for it in items_data
     ]
@@ -87,10 +88,16 @@ def create_usage(
         inv = db.get(InventoryItem, it.id)
         available = (inv.stock or 0) if inv is not None else 0
         actual = max(0, min(it.qtyUsed, available))
+        # Snapshot del costo unitario sin ISV en el momento del registro.
+        # Se guarda como 'unit_cost' para que el HISTORIAL muestre siempre
+        # el costo real al que se uso el accesorio, sin verse afectado por
+        # cambios futuros del costo en INVENTARIO.
+        unit_cost = float(inv.cost or 0.0) if inv is not None else 0.0
         if inv is not None:
             inv.stock = available - actual
         data = it.model_dump()
         data["actualDeducted"] = actual
+        data["unit_cost"] = unit_cost
         persisted_items.append(data)
     record.items_json = json.dumps(persisted_items)
     db.add(record)

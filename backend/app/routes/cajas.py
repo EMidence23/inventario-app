@@ -267,13 +267,21 @@ def list_cajas(
     Admin: puede filtrar por rango=hoy|semana|all (default all, historial completo).
     Empleado: siempre ve solo las cajas de HOY, ignora el parametro rango.
     """
-    from datetime import date, timedelta
+    from datetime import timedelta
 
     q = db.query(CajaHerramienta).order_by(
         CajaHerramienta.fecha.desc(), CajaHerramienta.id.desc()
     )
 
-    today = date.today().isoformat()
+    # Las fechas guardadas en CajaHerramienta.fecha vienen del cliente
+    # (formato YYYY-MM-DD en hora de Honduras). El servidor corre en UTC,
+    # asi que NO podemos usar date.today() directamente: despues de las
+    # 18:00 hora Honduras, date.today() del servidor ya es del dia
+    # siguiente y los empleados verian la lista vacia. Calculamos "hoy"
+    # en hora Honduras (UTC-6).
+    HN_OFFSET = timedelta(hours=-6)
+    now_hn = datetime.utcnow() + HN_OFFSET
+    today = now_hn.strftime("%Y-%m-%d")
     if user.role != "admin":
         # Empleado: siempre ve solo hoy (el historial es solo-admin).
         q = q.filter(CajaHerramienta.fecha == today)
@@ -281,8 +289,8 @@ def list_cajas(
         if rango == "hoy":
             q = q.filter(CajaHerramienta.fecha == today)
         elif rango == "semana":
-            # Semana corrida: hoy y los 6 dias anteriores.
-            hace7 = (date.today() - timedelta(days=6)).isoformat()
+            # Semana corrida: hoy y los 6 dias anteriores en hora Honduras.
+            hace7 = (now_hn.date() - timedelta(days=6)).isoformat()
             q = q.filter(CajaHerramienta.fecha >= hace7)
         # rango 'all' (default) o desconocido: sin filtro de fecha.
 

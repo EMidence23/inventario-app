@@ -117,6 +117,10 @@ class UsageItemOut(BaseModel):
     code: str
     name: str
     qtyUsed: int
+    # Costo unitario sin ISV congelado en el momento del registro. 0.0 si
+    # el item no esta en inventario o si el registro es muy viejo y nunca
+    # se le hizo backfill (deberia ser raro en la practica).
+    unit_cost: float = 0.0
 
 
 class UsageRecordOut(BaseModel):
