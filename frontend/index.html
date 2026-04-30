@@ -1,0 +1,2671 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Control de Inventario</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Noto+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;--accent:#f97316;--accent2:#fb923c;--text:#e6edf3;--text2:#8b949e;--green:#3fb950;--red:#f85149;--blue:#58a6ff;}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;font-size:14px;min-height:100vh;overscroll-behavior:none;}
+h1,h2,h3,h4{font-family:'Rajdhani',sans-serif;}
+.screen{display:none;min-height:100vh;flex-direction:column;}
+.screen.active{display:flex;}
+
+/* LOGIN */
+#loginScreen{justify-content:center;align-items:center;padding:24px;background:radial-gradient(ellipse at 50% 0%,#1a2332 0%,var(--bg) 70%);}
+.login-logo{text-align:center;margin-bottom:32px;}
+.login-logo .icon{font-size:48px;display:block;margin-bottom:8px;}
+.login-logo h1{font-size:28px;color:var(--accent);letter-spacing:2px;}
+.login-logo p{color:var(--text2);font-size:12px;margin-top:4px;}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px 24px;width:100%;max-width:360px;}
+.form-group{margin-bottom:16px;}
+.form-group label{display:block;color:var(--text2);font-size:12px;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;}
+.form-group input,.form-group select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:12px 14px;font-size:15px;font-family:'Noto Sans',sans-serif;outline:none;transition:border-color .2s;}
+.form-group input:focus,.form-group select:focus{border-color:var(--accent);}
+.btn{width:100%;padding:13px;border:none;border-radius:8px;font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:600;letter-spacing:1px;cursor:pointer;transition:all .2s;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:active{background:var(--accent2);transform:scale(.97);}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
+.btn-danger{background:var(--red);color:#fff;}
+.btn-sm{padding:7px 12px;font-size:13px;width:auto;border-radius:6px;}
+.btn-green{background:var(--green);color:#fff;}
+.login-error{color:var(--red);font-size:13px;text-align:center;margin-top:12px;display:none;}
+
+/* HEADER */
+.app-header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.app-header h2{font-size:19px;color:var(--accent);}
+.header-right{display:flex;align-items:center;gap:8px;}
+.badge-role{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 9px;font-size:11px;color:var(--text2);}
+.badge-role.admin{border-color:var(--accent);color:var(--accent);}
+.btn-logout{background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:4px;}
+
+/* BOTTOM NAV - 6 tabs */
+.bottom-nav{background:var(--surface);border-top:1px solid var(--border);display:flex;position:fixed;bottom:0;left:0;right:0;z-index:100;}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 2px 6px;cursor:pointer;color:var(--text2);border:none;background:none;transition:color .2s;}
+.nav-item.active{color:var(--accent);}
+.nav-item .nav-icon{font-size:20px;line-height:1;}
+.nav-item .nav-label{font-size:9px;margin-top:2px;font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:.3px;}
+.content{flex:1;padding:14px;padding-bottom:78px;overflow-y:auto;}
+.tab-view{display:none;}
+.tab-view.active{display:block;}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;}
+.stat-card .stat-val{font-family:'Rajdhani',sans-serif;font-size:30px;font-weight:700;color:var(--accent);}
+.stat-card .stat-label{color:var(--text2);font-size:11px;margin-top:2px;}
+.section-title{font-family:'Rajdhani',sans-serif;font-size:15px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:14px 0 8px;}
+
+/* SEARCH */
+.search-bar{position:relative;margin-bottom:12px;}
+.search-bar input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 14px 10px 38px;font-size:14px;outline:none;font-family:'Noto Sans',sans-serif;}
+.search-bar input:focus{border-color:var(--accent);}
+.search-bar .si{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text2);font-size:15px;}
+
+/* ITEM CARD */
+.item-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:9px;display:flex;align-items:center;gap:10px;}
+.stock-badge{display:inline-block;margin-top:5px;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;font-family:'Rajdhani',sans-serif;letter-spacing:.3px;}
+.stock-badge.stock-ok{background:rgba(46,160,67,.15);color:#3fb950;border:1px solid rgba(46,160,67,.35);}
+.stock-badge.stock-low{background:rgba(210,153,34,.15);color:#f0b429;border:1px solid rgba(210,153,34,.35);}
+.stock-badge.stock-zero{background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.4);}
+.item-info{flex:1;min-width:0;}
+.item-name{font-weight:600;font-size:14px;word-break:break-word;overflow-wrap:anywhere;line-height:1.3;}
+.item-code{color:var(--text2);font-size:12px;margin-top:2px;}
+.item-actions{display:flex;gap:6px;}
+
+/* USO RECIENTE - EXPANDIBLE */
+.uso-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:9px;overflow:hidden;}
+.uso-card-header{padding:13px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;user-select:none;}
+.uso-card-header:active{background:var(--surface2);}
+.uso-card-info{flex:1;}
+.uso-card-title{font-weight:600;font-size:14px;}
+.uso-card-sub{color:var(--text2);font-size:12px;margin-top:2px;}
+.uso-chevron{color:var(--text2);font-size:14px;transition:transform .25s;flex-shrink:0;}
+.uso-chevron.open{transform:rotate(180deg);}
+.uso-detail{display:none;border-top:1px solid var(--border);padding:10px 14px 12px;}
+.uso-detail.open{display:block;}
+.uso-detail-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);}
+.uso-detail-row:last-child{border-bottom:none;}
+.uso-detail-name{font-size:13px;color:var(--text);}
+.uso-detail-code{font-size:11px;color:var(--text2);}
+.uso-detail-qty{font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:var(--accent);}
+
+/* HISTORIAL TABS */
+.hist-tabs{display:flex;background:var(--surface2);border-radius:10px;padding:3px;margin-bottom:14px;gap:3px;}
+.hist-tab{flex:1;padding:9px;border:none;border-radius:7px;font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:600;cursor:pointer;background:none;color:var(--text2);transition:all .2s;}
+.hist-tab.active{background:var(--accent);color:#fff;}
+.hist-panel{display:none;}
+.hist-panel.active{display:block;}
+
+/* HISTORIAL ITEM */
+.hist-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;}
+.hist-qty{font-family:'Rajdhani',sans-serif;font-size:26px;font-weight:700;color:var(--accent);min-width:48px;text-align:right;}
+.hist-day-header{background:var(--surface2);border-radius:8px;padding:8px 12px;margin:12px 0 6px;display:flex;justify-content:space-between;align-items:center;}
+.hist-day-header span{font-family:'Rajdhani',sans-serif;font-size:14px;color:var(--text2);}
+.hist-day-header strong{font-family:'Rajdhani',sans-serif;font-size:14px;color:var(--accent);}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:flex-end;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:500px;padding:22px;border-top:1px solid var(--border);max-height:90vh;overflow-y:auto;}
+.modal-title{font-family:'Rajdhani',sans-serif;font-size:21px;color:var(--accent);margin-bottom:18px;}
+.modal-actions{display:flex;gap:10px;margin-top:18px;}
+.modal-actions .btn{flex:1;}
+
+/* REPORTES */
+.report-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:11px;}
+.report-card h3{font-family:'Rajdhani',sans-serif;font-size:17px;color:var(--text);margin-bottom:5px;}
+.report-card p{color:var(--text2);font-size:12px;margin-bottom:12px;}
+.date-picker{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;font-family:'Noto Sans',sans-serif;width:100%;margin-bottom:10px;outline:none;}
+.date-picker:focus{border-color:var(--accent);}
+
+/* USO FORM */
+.usage-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 12px;margin-bottom:7px;display:flex;align-items:center;gap:10px;}
+.qty-input{width:68px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px;text-align:center;font-size:16px;font-family:'Rajdhani',sans-serif;font-weight:600;outline:none;}
+.qty-input:focus{border-color:var(--accent);}
+/* Barra Guardar Uso: fija sobre la bottom-nav para que siempre sea alcanzable */
+.save-uso-bar{position:fixed;left:0;right:0;bottom:60px;padding:10px 14px 10px;background:linear-gradient(to bottom,rgba(13,17,23,0) 0%,var(--bg) 35%);z-index:90;pointer-events:none;}
+.save-uso-bar .btn{pointer-events:auto;box-shadow:0 4px 14px rgba(0,0,0,.45);}
+
+/* USUARIOS */
+.user-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px;margin-bottom:9px;display:flex;align-items:center;gap:11px;}
+.user-avatar{width:38px;height:38px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;color:#fff;flex-shrink:0;}
+.user-avatar.emp{background:var(--blue);}
+
+/* TOAST */
+.toast{position:fixed;top:18px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--green);color:#fff;padding:11px 18px;border-radius:10px;font-weight:600;z-index:500;transition:transform .3s;font-family:'Rajdhani',sans-serif;font-size:15px;white-space:nowrap;}
+.toast.error{background:var(--red);}
+.toast.show{transform:translateX(-50%) translateY(0);}
+
+/* MISC */
+.empty-state{text-align:center;padding:40px 16px;color:var(--text2);}
+.empty-state .empty-icon{font-size:44px;display:block;margin-bottom:10px;}
+.chip{display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:1px 9px;font-size:11px;color:var(--text2);}
+.locked-msg{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;color:var(--text2);font-size:13px;}
+.locked-msg .lock-icon{font-size:32px;display:block;margin-bottom:8px;}
+.loader-overlay{position:fixed;inset:0;background:rgba(13,17,23,.72);display:none;align-items:center;justify-content:center;z-index:9999;color:var(--text2);font-family:'Rajdhani',sans-serif;letter-spacing:1px;}
+.loader-overlay.show{display:flex;}
+.loader-spinner{width:42px;height:42px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin-right:14px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+</style>
+<meta name="api-base" content="__API_BASE__">
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen" class="screen active">
+  <div class="login-logo">
+    <h1>Inventario</h1>
+    <p>Sistema de Control</p>
+  </div>
+  <div class="login-card">
+    <div class="form-group">
+      <label>Usuario</label>
+      <input type="text" id="loginUser" placeholder="Ingresa tu usuario" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>Contraseña</label>
+      <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()">INGRESAR</button>
+    <div class="login-error" id="loginError">⚠️ Usuario o contraseña incorrectos</div>
+  </div>
+  <div style="margin-top:18px;text-align:center;color:var(--text2);font-size:11px;letter-spacing:.5px;opacity:.7;">
+    Hecho por Devin para Emerson &middot; 2026
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appScreen" class="screen">
+  <div class="app-header">
+    <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+      <h2 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Control de Inventario</h2>
+    </div>
+    <div class="header-right">
+      <span class="badge-role" id="badgeRole">Empleado</span>
+      <button class="btn-logout" onclick="doLogout()">⏏️</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div id="tabDashboard" class="tab-view active">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-val" id="statTotal">0</div>
+          <div class="stat-label">Tipos de Accesorio</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="statUsedToday">0</div>
+          <div class="stat-label">Unidades Usadas Hoy</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="statRegsToday">0</div>
+          <div class="stat-label">Registros de Hoy</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="statUsedWeek">0</div>
+          <div class="stat-label">Usadas Esta Semana</div>
+        </div>
+      </div>
+      <div class="section-title">📋 Uso Reciente <span style="font-size:11px;color:var(--text2);font-family:'Noto Sans';text-transform:none;letter-spacing:0;">(toca para ver detalle)</span></div>
+      <div id="recentUsage"></div>
+    </div>
+
+    <!-- INVENTARIO -->
+    <div id="tabInventario" class="tab-view">
+      <div class="search-bar">
+        <span class="si">🔍</span>
+        <input type="search" id="searchInv" placeholder="Buscar por código o nombre..." oninput="renderInventory()">
+      </div>
+      <select id="filterCat" class="date-picker" onchange="renderInventory()" style="margin-bottom:10px;">
+        <option value="">Todas las categorías</option>
+      </select>
+      <div id="invCount" style="color:var(--text2);font-size:12px;margin-bottom:10px;"></div>
+      <div id="adminAddBtn" style="display:none;margin-bottom:11px;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="openAddModal()">＋ Agregar Accesorio</button>
+        <button class="btn btn-secondary" onclick="downloadInventoryTemplate()">📤 Descargar Plantilla Excel</button>
+        <button class="btn btn-secondary" onclick="openBulkModal()">📥 Actualizar desde Excel</button>
+      </div>
+      <div id="inventoryList"></div>
+    </div>
+
+    <!-- REGISTRAR USO -->
+    <div id="tabUso" class="tab-view">
+      <div class="section-title">📝 Registrar Uso del Día</div>
+      <p style="color:var(--text2);font-size:13px;margin-bottom:12px;">Anota la cantidad usada. Deja en 0 los que no se usaron.</p>
+      <div class="search-bar">
+        <span class="si">🔍</span>
+        <input type="search" id="searchUso" placeholder="Buscar accesorio..." oninput="renderUsageList()">
+      </div>
+      <select id="filterCatUso" class="date-picker" onchange="renderUsageList()" style="margin-bottom:10px;">
+        <option value="">Todas las categorías</option>
+      </select>
+      <div id="usageList" style="padding-bottom:70px;"></div>
+      <div class="save-uso-bar">
+        <button class="btn btn-primary" onclick="saveUsage()">💾 GUARDAR USO</button>
+      </div>
+    </div>
+
+    <!-- HISTORIAL -->
+    <div id="tabHistorial" class="tab-view">
+      <div class="hist-tabs">
+        <button class="hist-tab active" id="htHoy" onclick="switchHistTab('hoy')">📅 HOY</button>
+        <button class="hist-tab" id="htSemana" onclick="switchHistTab('semana')">📊 SEMANA</button>
+        <button class="hist-tab" id="htMes" onclick="switchHistTab('mes')">📆 MES</button>
+      </div>
+
+      <!-- PANEL HOY -->
+      <div class="hist-panel active" id="hpHoy">
+        <div id="histHoyContent"></div>
+      </div>
+
+      <!-- PANEL SEMANA -->
+      <div class="hist-panel" id="hpSemana">
+        <div id="histSemanaContent"></div>
+      </div>
+
+      <!-- PANEL MES -->
+      <div class="hist-panel" id="hpMes">
+        <div id="histMesContent"></div>
+      </div>
+    </div>
+
+    <!-- REPORTES -->
+    <div id="tabReportes" class="tab-view">
+      <div class="report-card">
+        <h3>📅 Reporte Diario</h3>
+        <p>Excel con el total de accesorios usados en un día.</p>
+        <input type="date" id="reportDate" class="date-picker">
+        <button class="btn btn-green" onclick="exportDaily()">⬇️ DESCARGAR EXCEL DIARIO</button>
+      </div>
+      <div class="report-card" id="reportSemanaCard">
+        <h3>📊 Reporte Semanal</h3>
+        <p>Excel con resumen de toda una semana. (Solo Admin)</p>
+        <input type="date" id="weekStart" class="date-picker">
+        <button class="btn btn-green" onclick="exportWeekly()">⬇️ DESCARGAR EXCEL SEMANAL</button>
+      </div>
+      <div class="report-card" id="reportMesCard">
+        <h3>🗓️ Reporte Mensual</h3>
+        <p>Excel con resumen de un mes completo. (Solo Admin)</p>
+        <input type="month" id="monthPick" class="date-picker">
+        <button class="btn btn-green" onclick="exportMonthly()">⬇️ DESCARGAR EXCEL MENSUAL</button>
+      </div>
+      <div class="report-card" id="reportAnoCard">
+        <h3>📆 Reporte Anual</h3>
+        <p>Excel con resumen del año, desglosado por mes. (Solo Admin)</p>
+        <input type="number" id="yearPick" class="date-picker" min="2020" max="2100" step="1" placeholder="2026">
+        <button class="btn btn-green" onclick="exportYearly()">⬇️ DESCARGAR EXCEL ANUAL</button>
+      </div>
+    </div>
+
+    <!-- USUARIOS -->
+    <div id="tabUsuarios" class="tab-view">
+      <button class="btn btn-primary" onclick="openAddUserModal()" style="margin-bottom:14px;">＋ Agregar Usuario</button>
+      <div id="userList"></div>
+    </div>
+
+    <!-- BITACORA -->
+    <div id="tabBitacora" class="tab-view">
+      <div class="hist-tabs">
+        <button class="hist-tab active" id="biRangoHoy" onclick="setBitacoraRango('hoy')">📅 HOY</button>
+        <button class="hist-tab" id="biRangoSem" onclick="setBitacoraRango('semana')">📊 SEMANA</button>
+        <button class="hist-tab" id="biRangoMes" onclick="setBitacoraRango('mes')">📆 MES</button>
+        <button class="hist-tab" id="biRangoAll" onclick="setBitacoraRango('all')">📚 TODO</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;">
+        <select id="biCategoria" onchange="renderBitacora()" class="date-picker" style="flex:1;min-width:150px;">
+          <option value="">Todas las categorías</option>
+          <option value="inventario">📦 Inventario</option>
+          <option value="usos">✏️ Registros de uso</option>
+        </select>
+        <select id="biUsuario" onchange="renderBitacora()" class="date-picker" style="flex:1;min-width:150px;">
+          <option value="">Todos los usuarios</option>
+        </select>
+      </div>
+      <!-- Buscador por accesorio: input + dropdown de sugerencias en vivo. -->
+      <div style="position:relative;margin:10px 0;">
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input type="text" id="biAccesorioInput" placeholder="🔍 Buscar movimientos de un accesorio (código o nombre)…"
+            class="date-picker" style="flex:1;"
+            oninput="onBitacoraAccesorioInput()" onfocus="onBitacoraAccesorioInput()" onblur="setTimeout(closeBitacoraSuggest,150)">
+          <button class="btn btn-secondary" id="biAccesorioClear" style="display:none;" onclick="clearBitacoraAccesorio()">✕</button>
+        </div>
+        <div id="biAccesorioSuggest" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:260px;overflow:auto;margin-top:4px;box-shadow:0 8px 24px rgba(0,0,0,0.6);"></div>
+        <div id="biAccesorioPill" style="display:none;margin-top:6px;font-size:13px;color:var(--text2);"></div>
+      </div>
+      <div id="bitacoraList"></div>
+    </div>
+
+    <!-- CAJAS DE HERRAMIENTAS -->
+    <div id="tabCajas" class="tab-view">
+      <div class="hist-tabs">
+        <button class="hist-tab active" id="cjTabCajas" onclick="switchCajaSubTab('cajas')">🧰 CAJAS</button>
+        <button class="hist-tab" id="cjTabPlant" onclick="switchCajaSubTab('plant')">📋 PLANTILLAS</button>
+        <button class="hist-tab" id="cjTabInst" onclick="switchCajaSubTab('inst')">👷 INSTALADORES</button>
+        <button class="hist-tab" id="cjTabHerr" onclick="switchCajaSubTab('herr')">🛠 HERRAMIENTAS</button>
+      </div>
+
+      <!-- Lista / crear cajas del dia -->
+      <div class="hist-panel active" id="cjPanelCajas">
+        <div id="cajasRangoBar" style="display:none;margin-bottom:10px;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-secondary" id="cjRangoHoy" onclick="setCajasRango('hoy')">HOY</button>
+          <button class="btn btn-secondary" id="cjRangoSem" onclick="setCajasRango('semana')">📊 SEMANA</button>
+          <button class="btn btn-secondary" id="cjRangoAll" onclick="setCajasRango('all')">📚 HISTORIAL</button>
+        </div>
+        <button class="btn btn-primary" onclick="openCajaModal()" style="margin-bottom:14px;">＋ Asignar nueva caja</button>
+        <div id="cajasList"></div>
+      </div>
+
+      <!-- Plantillas -->
+      <div class="hist-panel" id="cjPanelPlant">
+        <button class="btn btn-primary" onclick="openPlantillaModal()" style="margin-bottom:14px;">＋ Crear Plantilla</button>
+        <div style="color:var(--text2);font-size:12px;margin-bottom:10px;">
+          Las plantillas te permiten guardar "Cajas Completas" listas para usar.
+          Al asignar una caja, eliges una plantilla y se pre-llena con las
+          herramientas y cantidades. Puedes modificarlas antes de guardar (Caja modificada).
+        </div>
+        <div id="plantillasList"></div>
+      </div>
+
+      <!-- Catalogo de instaladores -->
+      <div class="hist-panel" id="cjPanelInst">
+        <button class="btn btn-primary" onclick="openInstModal()" style="margin-bottom:14px;">＋ Agregar Instalador</button>
+        <div id="instList"></div>
+      </div>
+
+      <!-- Catalogo de herramientas -->
+      <div class="hist-panel" id="cjPanelHerr">
+        <button class="btn btn-primary" onclick="openHerrModal()" style="margin-bottom:14px;">＋ Agregar Herramienta</button>
+        <div id="herrList"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <nav class="bottom-nav">
+    <button class="nav-item active" onclick="switchTab('Dashboard')" id="nav-Dashboard">
+      <span class="nav-icon">🏠</span><span class="nav-label">INICIO</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('Inventario')" id="nav-Inventario">
+      <span class="nav-icon">📦</span><span class="nav-label">INVENTARIO</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('Uso')" id="nav-Uso">
+      <span class="nav-icon">✏️</span><span class="nav-label">REGISTRAR</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('Historial')" id="nav-Historial">
+      <span class="nav-icon">📋</span><span class="nav-label">HISTORIAL</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('Cajas')" id="nav-Cajas">
+      <span class="nav-icon">🧰</span><span class="nav-label">CAJAS</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('Reportes')" id="nav-Reportes" style="display:none;">
+      <span class="nav-icon">📊</span><span class="nav-label">REPORTES</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('Usuarios')" id="nav-Usuarios" style="display:none;">
+      <span class="nav-icon">👥</span><span class="nav-label">USUARIOS</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('Bitacora')" id="nav-Bitacora" style="display:none;">
+      <span class="nav-icon">📜</span><span class="nav-label">MOVIMIENTOS</span>
+    </button>
+  </nav>
+</div>
+
+<!-- MODAL ACCESORIO -->
+<div class="modal-overlay" id="itemModal">
+  <div class="modal">
+    <div class="modal-title" id="itemModalTitle">Agregar Accesorio</div>
+    <div class="form-group">
+      <label>Código</label>
+      <input type="text" id="iCode" placeholder="Ej: ACC-001">
+    </div>
+    <div class="form-group">
+      <label>Nombre / Descripción</label>
+      <input type="text" id="iName" placeholder="Ej: Cable UTP Cat6 (metro)">
+    </div>
+    <div class="form-group">
+      <label>Categoría (Opcional)</label>
+      <input type="text" id="iCat" placeholder="Ej: Cables, Herramientas...">
+    </div>
+    <div class="form-group">
+      <label>Cantidad en Stock</label>
+      <input type="number" id="iStock" min="0" step="1" placeholder="Ej: 100">
+    </div>
+    <div class="form-group">
+      <label>Costo Unitario SIN ISV (L.)</label>
+      <input type="number" id="iCost" min="0" step="0.01" placeholder="Ej: 25.50" oninput="updateIsvPreview()">
+      <div id="iCostIsvPreview" style="font-size:11px;color:var(--text2);margin-top:4px;">Con ISV (15%): L. 0.00</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('itemModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveItem()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL BULK UPDATE EXCEL -->
+<div class="modal-overlay" id="bulkModal">
+  <div class="modal" style="max-width:640px;max-height:88vh;overflow-y:auto;">
+    <div class="modal-title">📥 Actualizar Inventario desde Excel</div>
+    <div id="bulkStep1">
+      <div style="background:var(--surface2);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:12px;">
+        <b>💡 Recomendado:</b> primero descargá la plantilla con los datos actuales, editás solo lo que querés cambiar, y la volvés a subir.
+        <br><br><b>Columnas reconocidas</b> (no importa el orden):
+        <br>• <b>CodProducto</b> (obligatorio) — debe existir ya en el inventario
+        <br>• <b>Stock</b> (opcional) — actualiza la cantidad en stock
+        <br>• <b>Costo</b> (opcional) — <b>CON ISV incluido</b>. El sistema divide entre 1.15
+        <br>• <b>Descripcion</b> (opcional) — actualiza el nombre
+        <br>• <b>Categoria</b> (opcional) — actualiza la categoría
+        <br><br>Las celdas vacías no modifican nada. Los códigos que no existan se saltan (no se crean productos nuevos).
+      </div>
+      <div style="margin-bottom:10px;">
+        <button class="btn btn-secondary" style="width:100%;" onclick="downloadInventoryTemplate()">📤 Descargar plantilla con datos actuales</button>
+      </div>
+      <div class="form-group">
+        <label>Selecciona archivo Excel (.xlsx)</label>
+        <input type="file" id="bulkFile" accept=".xlsx,.xls,.csv" onchange="onBulkFileChange(event)">
+      </div>
+      <div id="bulkParseMsg" style="font-size:12px;color:var(--text2);"></div>
+    </div>
+    <div id="bulkStep2" style="display:none;">
+      <div id="bulkSummary" style="background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:12px;"></div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">Detalle de los primeros cambios:</div>
+      <div id="bulkDetails" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeBulkModal()">Cancelar</button>
+      <button class="btn btn-secondary" id="bulkBackBtn" style="display:none;" onclick="bulkBack()">← Atrás</button>
+      <button class="btn btn-primary" id="bulkConfirmBtn" style="display:none;" onclick="commitBulkUpdate()">Confirmar y Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL USUARIO -->
+<div class="modal-overlay" id="userModal">
+  <div class="modal">
+    <div class="modal-title" id="userModalTitle">Agregar Usuario</div>
+    <div class="form-group">
+      <label>Nombre de Usuario</label>
+      <input type="text" id="uName" placeholder="usuario123">
+    </div>
+    <div class="form-group">
+      <label id="uPassLabel">Contraseña</label>
+      <input type="password" id="uPass" placeholder="••••••••">
+      <div id="uPassHint" style="color:var(--text2);font-size:11px;margin-top:4px;display:none;">Déjalo vacío para mantener la contraseña actual.</div>
+    </div>
+    <div class="form-group">
+      <label>Rol</label>
+      <select id="uRole">
+        <option value="empleado">Empleado</option>
+        <option value="admin">Administrador</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('userModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveUser()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL INSTALADOR -->
+<div class="modal-overlay" id="instModal">
+  <div class="modal">
+    <div class="modal-title" id="instModalTitle">Agregar Instalador</div>
+    <div class="form-group">
+      <label>Nombre completo</label>
+      <input type="text" id="instName" placeholder="Ej: Carlos López">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('instModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveInstalador()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL HERRAMIENTA -->
+<div class="modal-overlay" id="herrModal">
+  <div class="modal">
+    <div class="modal-title" id="herrModalTitle">Agregar Herramienta</div>
+    <div class="form-group">
+      <label>Nombre de la herramienta</label>
+      <input type="text" id="herrName" placeholder="Ej: Taladro Bosch">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('herrModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveHerramienta()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NUEVA CAJA -->
+<div class="modal-overlay" id="cajaModal">
+  <div class="modal" style="max-height:88vh;overflow-y:auto;">
+    <div class="modal-title">Asignar Caja de Herramientas</div>
+    <div class="form-group">
+      <label>📋 Usar Plantilla (opcional)</label>
+      <select id="cjPlantillaSel" class="date-picker" onchange="applyPlantillaToCaja()">
+        <option value="">— Sin plantilla (Caja modificada desde cero) —</option>
+      </select>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px;">Pre-llena las cantidades con una plantilla guardada. Puedes ajustarlas después (eso sería una "Caja Modificada").</div>
+    </div>
+    <div class="form-group">
+      <label>Fecha</label>
+      <input type="date" id="cjFecha">
+    </div>
+    <div class="form-group">
+      <label>👷 Instaladores que llevan la caja</label>
+      <div id="cjInstPicker" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--surface2);"></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px;">Selecciona uno o varios. Si falta alguien, agrégalo en la pestaña 👷 INSTALADORES.</div>
+    </div>
+    <div class="form-group">
+      <label>🧰 Herramientas y cantidades</label>
+      <div id="cjHerrPicker" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--surface2);"></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px;">Pon la cantidad que se entrega. Deja 0 lo que no va.</div>
+    </div>
+    <div class="form-group">
+      <label>Notas (opcional)</label>
+      <input type="text" id="cjNotas" placeholder="Ej: proyecto Los Próceres, turno 8-5">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('cajaModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCaja()">Asignar Caja</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PLANTILLA -->
+<div class="modal-overlay" id="plantillaModal">
+  <div class="modal" style="max-height:88vh;overflow-y:auto;">
+    <div class="modal-title" id="plModalTitle">Crear Plantilla</div>
+    <div class="form-group">
+      <label>Nombre de la plantilla</label>
+      <input type="text" id="plName" placeholder="Ej: Caja Instalador Estándar">
+    </div>
+    <div class="form-group">
+      <label>🧰 Herramientas y cantidades</label>
+      <div id="plHerrPicker" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--surface2);"></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px;">Pon la cantidad por defecto. Deja 0 las que no van.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('plantillaModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePlantilla()">Guardar Plantilla</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL REVISAR CAJA -->
+<div class="modal-overlay" id="revisarModal">
+  <div class="modal" style="max-height:88vh;overflow-y:auto;">
+    <div class="modal-title" id="rvTitle">Revisar Caja</div>
+    <div style="color:var(--text2);font-size:12px;margin-bottom:10px;" id="rvSub"></div>
+    <div class="form-group">
+      <label>Herramientas devueltas</label>
+      <div id="rvItems"></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:6px;">Ingresa cuántas regresaron. Si devolvieron todas, deja la misma cantidad. Si faltó, pon menos.</div>
+    </div>
+    <div class="form-group">
+      <label>Notas de la revisión (opcional)</label>
+      <input type="text" id="rvNotas" placeholder="Ej: se perdió 1 broca en la obra">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('revisarModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveRevision()">Guardar Revisión</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="loader-overlay" id="loaderOverlay"><div class="loader-spinner"></div>Cargando…</div>
+
+<script>
+// ── API CLIENT ───────────────────────────────────────────
+const DEFAULT_API_BASE = 'https://inventario-backend-nkpdbvdn.fly.dev';
+const API_BASE = (function(){
+  const q = new URLSearchParams(window.location.search).get('api');
+  if(q) return q.replace(/\/+$/,'');
+  const meta = document.querySelector('meta[name="api-base"]');
+  const v = meta && meta.content && meta.content.trim();
+  if(v && v !== '__API_BASE__') return v.replace(/\/+$/,'');
+  return DEFAULT_API_BASE;
+})();
+const TOKEN_KEY='inv_token';
+function getToken(){return localStorage.getItem(TOKEN_KEY);}
+function setToken(t){if(t) localStorage.setItem(TOKEN_KEY,t); else localStorage.removeItem(TOKEN_KEY);}
+async function api(path,opts={}){
+  const headers={'Content-Type':'application/json',...(opts.headers||{})};
+  const tok=getToken();
+  if(tok) headers['Authorization']='Bearer '+tok;
+  const res=await fetch(API_BASE+path,{...opts,headers});
+  if(res.status===204) return null;
+  let body=null;
+  try{body=await res.json();}catch{}
+  if(!res.ok){
+    const msg=(body&&body.detail)?body.detail:('Error '+res.status);
+    const err=new Error(msg);err.status=res.status;err.body=body;
+    throw err;
+  }
+  return body;
+}
+function showLoader(on){document.getElementById('loaderOverlay').classList.toggle('show',!!on);}
+
+// ── IN-MEMORY CACHE ──────────────────────────────────────
+const CACHE={inventory:[],usage:[],users:[],instaladores:[],herramientas:[],cajas:[],plantillas:[]};
+let cajasRango='hoy';
+async function loadInventory(){CACHE.inventory=await api('/api/inventory');return CACHE.inventory;}
+async function loadUsage(){CACHE.usage=await api('/api/usage');return CACHE.usage;}
+async function loadUsers(){CACHE.users=await api('/api/users');return CACHE.users;}
+async function loadInstaladores(){CACHE.instaladores=await api('/api/instaladores');return CACHE.instaladores;}
+async function loadHerramientas(){CACHE.herramientas=await api('/api/herramientas');return CACHE.herramientas;}
+async function loadCajas(){
+  const isAdmin=currentUser&&currentUser.role==='admin';
+  const q=isAdmin?('?rango='+encodeURIComponent(cajasRango)):'';
+  CACHE.cajas=await api('/api/cajas'+q);
+  return CACHE.cajas;
+}
+async function loadPlantillas(){CACHE.plantillas=await api('/api/plantillas');return CACHE.plantillas;}
+function getInventory(){return CACHE.inventory||[];}
+function getUsage(){return CACHE.usage||[];}
+function getUsers(){return CACHE.users||[];}
+function getInstaladores(){return CACHE.instaladores||[];}
+function getHerramientas(){return CACHE.herramientas||[];}
+function getCajas(){return CACHE.cajas||[];}
+function getPlantillas(){return CACHE.plantillas||[];}
+
+// ── AUTH ─────────────────────────────────────────────────
+let currentUser=null;
+function showLoginError(msg){
+  const el=document.getElementById('loginError');
+  el.textContent=msg||'⚠️ Usuario o contraseña incorrectos';
+  el.style.display='block';
+}
+async function doLogin(){
+  const u=document.getElementById('loginUser').value.trim();
+  const p=document.getElementById('loginPass').value;
+  if(!u||!p){showLoginError('⚠️ Ingresa usuario y contraseña');return;}
+  try{
+    showLoader(true);
+    const resp=await api('/api/auth/login',{method:'POST',body:JSON.stringify({username:u,password:p})});
+    setToken(resp.access_token);
+    currentUser=resp.user;
+    document.getElementById('loginError').style.display='none';
+    document.getElementById('loginUser').value='';
+    document.getElementById('loginPass').value='';
+    await startApp();
+  }catch(err){
+    showLoginError(err.status===401?'⚠️ Usuario o contraseña incorrectos':('⚠️ '+err.message));
+  }finally{
+    showLoader(false);
+  }
+}
+function doLogout(){
+  setToken(null);
+  currentUser=null;
+  CACHE.inventory=[];CACHE.usage=[];CACHE.users=[];CACHE.instaladores=[];CACHE.herramientas=[];CACHE.cajas=[];CACHE.plantillas=[];
+  document.getElementById('appScreen').classList.remove('active');
+  document.getElementById('loginScreen').classList.add('active');
+  // Reset tab DOM without triggering data fetches (no currentUser = no auth).
+  document.querySelectorAll('.tab-view').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const dashTab=document.getElementById('tabDashboard');
+  const dashNav=document.getElementById('nav-Dashboard');
+  if(dashTab) dashTab.classList.add('active');
+  if(dashNav) dashNav.classList.add('active');
+}
+function applyRoleVisibility(){
+  const isAdmin=currentUser&&currentUser.role==='admin';
+  document.getElementById('badgeRole').textContent=isAdmin?'👑 Admin':'👤 Empleado';
+  document.getElementById('badgeRole').className='badge-role'+(isAdmin?' admin':'');
+  document.getElementById('adminAddBtn').style.display=isAdmin?'flex':'none';
+  document.getElementById('nav-Usuarios').style.display=isAdmin?'flex':'none';
+  document.getElementById('nav-Reportes').style.display=isAdmin?'flex':'none';
+  document.getElementById('nav-Bitacora').style.display=isAdmin?'flex':'none';
+  document.getElementById('reportSemanaCard').style.display=isAdmin?'block':'none';
+}
+async function startApp(){
+  document.getElementById('loginScreen').classList.remove('active');
+  document.getElementById('appScreen').classList.add('active');
+  applyRoleVisibility();
+  const today=todayStr();
+  document.getElementById('reportDate').value=today;
+  document.getElementById('weekStart').value=today;
+  document.getElementById('monthPick').value=today.slice(0,7);
+  document.getElementById('yearPick').value=today.slice(0,4);
+  usageQtys={};
+  await refreshAll();
+  renderDashboard();
+}
+async function refreshAll(){
+  try{
+    const tasks=[loadInventory(),loadUsage()];
+    if(currentUser&&currentUser.role==='admin') tasks.push(loadUsers());
+    await Promise.all(tasks);
+  }catch(err){
+    if(err.status===401){doLogout();showToast('Sesión expirada, ingresa de nuevo',true);}
+    else{showToast('⚠️ '+err.message,true);}
+  }
+}
+async function tryResumeSession(){
+  if(!getToken()) return false;
+  try{
+    const u=await api('/api/auth/me');
+    currentUser=u;
+    await startApp();
+    return true;
+  }catch{
+    setToken(null);
+    return false;
+  }
+}
+
+// ── NAVIGATION ───────────────────────────────────────────
+async function switchTab(tab){
+  document.querySelectorAll('.tab-view').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('tab'+tab).classList.add('active');
+  document.getElementById('nav-'+tab).classList.add('active');
+  // Si no hay sesion, no intentes cargar datos (evita loop de 401 tras logout).
+  if(!currentUser) return;
+  // Refrescar datos relevantes desde el servidor para ver cambios de otros usuarios.
+  try{
+    if(tab==='Dashboard'){await Promise.all([loadInventory(),loadUsage()]);renderDashboard();}
+    else if(tab==='Inventario'){await loadInventory();renderInventory();}
+    else if(tab==='Uso'){await loadInventory();renderUsageList();}
+    else if(tab==='Historial'){await loadUsage();renderHistorial();}
+    else if(tab==='Cajas'){await Promise.all([loadInstaladores(),loadHerramientas(),loadCajas(),loadPlantillas()]);renderCajasTab();}
+    else if(tab==='Usuarios'){await loadUsers();renderUsers();}
+    else if(tab==='Bitacora'){await loadBitacora();renderBitacora();}
+  }catch(err){
+    if(err.status===401){doLogout();return;}
+    showToast('⚠️ '+err.message,true);
+  }
+}
+
+// ── DASHBOARD ────────────────────────────────────────────
+function renderDashboard(){
+  const inv=getInventory();
+  const usage=getUsage();
+  const today=todayStr();
+  const monday=getMondayOf(today);
+  const sunday=getSundayOf(monday);
+  const todayRegs=usage.filter(u=>u.date===today);
+  const usedToday=todayRegs.reduce((a,u)=>a+u.items.reduce((b,i)=>b+i.qtyUsed,0),0);
+  const weekUsage=usage.filter(u=>u.date>=monday&&u.date<=sunday);
+  const usedWeek=weekUsage.reduce((a,u)=>a+u.items.reduce((b,i)=>b+i.qtyUsed,0),0);
+  document.getElementById('statTotal').textContent=inv.length;
+  document.getElementById('statUsedToday').textContent=usedToday;
+  document.getElementById('statRegsToday').textContent=todayRegs.length;
+  document.getElementById('statUsedWeek').textContent=usedWeek;
+
+  const recentDiv=document.getElementById('recentUsage');
+  const last8=[...usage].reverse().slice(0,8);
+  if(last8.length===0){
+    recentDiv.innerHTML='<p style="color:var(--text2);font-size:13px;">No hay registros de uso aún.</p>';
+    return;
+  }
+  recentDiv.innerHTML=last8.map((u,idx)=>{
+    const total=u.items.reduce((a,i)=>a+i.qtyUsed,0);
+    const hora=formatTime(u.ts);
+    const detailRows=u.items.map(i=>`
+      <div class="uso-detail-row">
+        <div><div class="uso-detail-name">${esc(i.name)}</div><div class="uso-detail-code">${esc(i.code)}</div></div>
+        <div class="uso-detail-qty">${i.qtyUsed}</div>
+      </div>`).join('');
+    return `<div class="uso-card">
+      <div class="uso-card-header" onclick="toggleUso(${idx})">
+        <div class="uso-card-info">
+          <div class="uso-card-title">📅 ${formatDate(u.date)} · 🕐 ${hora} &nbsp;<span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">por ${esc(u.user)}</span></div>
+          <div class="uso-card-sub">${u.items.length} artículo(s) · <strong style="color:var(--accent)">${total}</strong> unidades registradas</div>
+        </div>
+        <span class="uso-chevron" id="chev-${idx}">▼</span>
+      </div>
+      <div class="uso-detail" id="detail-${idx}">
+        <div style="font-family:'Rajdhani',sans-serif;font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Detalle del registro</div>
+        ${detailRows}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleUso(idx){
+  const det=document.getElementById('detail-'+idx);
+  const chev=document.getElementById('chev-'+idx);
+  const isOpen=det.classList.contains('open');
+  det.classList.toggle('open',!isOpen);
+  chev.classList.toggle('open',!isOpen);
+}
+
+// ── INVENTARIO ───────────────────────────────────────────
+let editingItemId=null;
+function renderInventory(){
+  const all=getInventory();
+  const total=all.length;
+  const q=(document.getElementById('searchInv').value||'').toLowerCase().trim();
+  const catSel=document.getElementById('filterCat');
+  // Reconstruir opciones del dropdown preservando seleccion
+  const prev=catSel.value;
+  const cats=[...new Set(all.map(i=>(i.cat||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  catSel.innerHTML='<option value="">Todas las categorías</option>'+cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  catSel.value=cats.includes(prev)?prev:'';
+  const catF=catSel.value;
+  let items=all;
+  if(catF) items=items.filter(i=>(i.cat||'').trim()===catF);
+  if(q) items=items.filter(i=>i.code.toLowerCase().includes(q)||i.name.toLowerCase().includes(q));
+  document.getElementById('invCount').textContent=`Mostrando ${items.length} de ${total}`+(catF?` · ${catF}`:'');
+  const list=document.getElementById('inventoryList');
+  if(items.length===0){list.innerHTML='<div class="empty-state"><span class="empty-icon">🔍</span><p>No se encontraron accesorios</p></div>';return;}
+  const isAdmin=currentUser.role==='admin';
+  list.innerHTML=items.map(i=>{
+    const s=Number(i.stock||0);
+    const cls=s===0?'stock-zero':(s<=20?'stock-low':'stock-ok');
+    const c=Number(i.cost||0);
+    const cIsv=withIsv(c);
+    const costoHtml=isAdmin?`
+      <div class="stock-badge stock-ok" style="margin-left:6px;background:rgba(46,160,67,.15);color:#56d364;border-color:rgba(46,160,67,.35);" title="Con ISV 15%">💰 ${formatLempira(cIsv)}</div>
+      <div class="stock-badge stock-ok" style="margin-left:4px;background:rgba(56,139,253,.15);color:#79b8ff;border-color:rgba(56,139,253,.35);" title="Sin ISV">s/ISV ${formatLempira(c)}</div>`:'';
+    return `
+    <div class="item-card">
+      <div class="item-info">
+        <div class="item-name">${esc(i.name)}</div>
+        <div class="item-code">${esc(i.code)}${i.cat?` <span class="chip">${esc(i.cat)}</span>`:''}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
+          <div class="stock-badge ${cls}">📦 Stock: <strong>${s}</strong></div>
+          ${costoHtml}
+        </div>
+      </div>
+      ${isAdmin?`<div class="item-actions" style="flex-direction:column;align-items:stretch;gap:6px;">
+        <div style="display:flex;gap:6px;justify-content:flex-end;">
+          <button class="btn btn-secondary btn-sm" onclick="openEditModal(${i.id})">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteItem(${i.id})">🗑️</button>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="openMovimientosForItem(${i.id})" title="Ver movimientos" style="display:flex;align-items:center;justify-content:center;gap:4px;">📜 <span style="font-size:11px;">Movimientos</span></button>
+      </div>`:''}
+    </div>`;
+  }).join('');
+}
+function updateIsvPreview(){
+  const v=parseFloat(document.getElementById('iCost').value)||0;
+  const p=document.getElementById('iCostIsvPreview');
+  if(p) p.textContent=`Con ISV (${(ISV_RATE*100).toFixed(0)}%): ${formatLempira(withIsv(v))}`;
+}
+function openAddModal(){
+  editingItemId=null;
+  document.getElementById('itemModalTitle').textContent='Agregar Accesorio';
+  ['iCode','iName','iCat'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('iStock').value='100';
+  document.getElementById('iCost').value='';
+  updateIsvPreview();
+  openModal('itemModal');
+}
+function openEditModal(id){
+  const item=getInventory().find(i=>i.id===id);
+  if(!item) return;
+  editingItemId=id;
+  document.getElementById('itemModalTitle').textContent='Editar Accesorio';
+  document.getElementById('iCode').value=item.code;
+  document.getElementById('iName').value=item.name;
+  document.getElementById('iCat').value=item.cat||'';
+  document.getElementById('iStock').value=Number(item.stock||0);
+  document.getElementById('iCost').value=Number(item.cost||0).toFixed(2);
+  updateIsvPreview();
+  openModal('itemModal');
+}
+async function saveItem(){
+  const code=document.getElementById('iCode').value.trim();
+  const name=document.getElementById('iName').value.trim();
+  const cat=document.getElementById('iCat').value.trim();
+  const stockRaw=document.getElementById('iStock').value.trim();
+  const stock=stockRaw===''?null:Math.max(0,parseInt(stockRaw,10)||0);
+  const costRaw=document.getElementById('iCost').value.trim();
+  const cost=costRaw===''?null:Math.max(0,parseFloat(costRaw)||0);
+  if(!code||!name){showToast('Código y nombre son obligatorios',true);return;}
+  const payload={code,name,cat};
+  if(stock!==null) payload.stock=stock;
+  if(cost!==null) payload.cost=cost;
+  try{
+    showLoader(true);
+    if(editingItemId){
+      await api('/api/inventory/'+editingItemId,{method:'PUT',body:JSON.stringify(payload)});
+      showToast('✅ Accesorio actualizado');
+    }else{
+      await api('/api/inventory',{method:'POST',body:JSON.stringify(payload)});
+      showToast('✅ Accesorio agregado');
+    }
+    await loadInventory();
+    closeModal('itemModal');
+    renderInventory();
+  }catch(err){
+    showToast('⚠️ '+err.message,true);
+  }finally{
+    showLoader(false);
+  }
+}
+// ─── Bulk update desde Excel ────────────────────────────────────────
+let bulkParsedRows=null;
+function downloadInventoryTemplate(){
+  const inv=getInventory();
+  if(!inv||inv.length===0){showToast('No hay productos en el inventario',true);return;}
+  const ISV=0.15;
+  const header=['CodProducto','Descripcion','Categoria','Stock','Costo (CON ISV)'];
+  const aoa=[header];
+  inv.forEach(it=>{
+    const costSinIsv=Number(it.cost||0);
+    const costConIsv=+(costSinIsv*(1+ISV)).toFixed(4);
+    aoa.push([
+      it.code||'',
+      it.name||'',
+      it.cat||'',
+      Number(it.stock||0),
+      costConIsv,
+    ]);
+  });
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  // Ancho sugerido de columnas.
+  ws['!cols']=[{wch:14},{wch:48},{wch:18},{wch:10},{wch:16}];
+  // Dar formato moneda a la columna de costo.
+  const range=XLSX.utils.decode_range(ws['!ref']);
+  for(let r=1;r<=range.e.r;r++){
+    const addr=XLSX.utils.encode_cell({c:4,r});
+    if(ws[addr]){ws[addr].t='n';ws[addr].z='"L. "#,##0.00';}
+  }
+  XLSX.utils.book_append_sheet(wb,ws,'Inventario');
+  const today=new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb,`Plantilla_Inventario_${today}.xlsx`);
+  showToast('📤 Plantilla descargada');
+}
+function openBulkModal(){
+  bulkParsedRows=null;
+  document.getElementById('bulkFile').value='';
+  document.getElementById('bulkParseMsg').textContent='';
+  document.getElementById('bulkStep1').style.display='block';
+  document.getElementById('bulkStep2').style.display='none';
+  document.getElementById('bulkBackBtn').style.display='none';
+  document.getElementById('bulkConfirmBtn').style.display='none';
+  openModal('bulkModal');
+}
+function closeBulkModal(){closeModal('bulkModal');}
+function bulkBack(){
+  document.getElementById('bulkStep1').style.display='block';
+  document.getElementById('bulkStep2').style.display='none';
+  document.getElementById('bulkBackBtn').style.display='none';
+  document.getElementById('bulkConfirmBtn').style.display='none';
+}
+function _normHeader(s){
+  return String(s||'').trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
+function _pickHeaderKey(headers, candidates){
+  for(let i=0;i<headers.length;i++){
+    const h=_normHeader(headers[i]);
+    if(candidates.includes(h)) return i;
+  }
+  return -1;
+}
+async function onBulkFileChange(ev){
+  const file=ev.target.files&&ev.target.files[0];
+  if(!file) return;
+  const msg=document.getElementById('bulkParseMsg');
+  msg.textContent='📄 Leyendo archivo...';
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    if(!ws){throw new Error('El archivo no tiene hojas');}
+    const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    if(aoa.length<2){throw new Error('El archivo no tiene filas de datos');}
+    const headers=aoa[0].map(h=>String(h||''));
+    const idxCode=_pickHeaderKey(headers,['codproducto','codigo','codigo producto','code','cod producto']);
+    const idxStock=_pickHeaderKey(headers,['stock','cantidad','existencia','cantidad en stock']);
+    const idxCost=_pickHeaderKey(headers,['costo','precio','costo con isv','costo c/isv','costo (con isv)','costo (con isv 15%)','costo con 15%']);
+    const idxName=_pickHeaderKey(headers,['descripcion','nombre','producto']);
+    const idxCat=_pickHeaderKey(headers,['categoria','cat']);
+    if(idxCode<0){throw new Error('No se encontró la columna CodProducto');}
+    const rows=[];
+    for(let r=1;r<aoa.length;r++){
+      const row=aoa[r];
+      if(!row) continue;
+      const codeRaw=row[idxCode];
+      if(codeRaw===undefined||codeRaw===null||String(codeRaw).trim()==='') continue;
+      const entry={code:String(codeRaw).trim()};
+      if(idxStock>=0){
+        const v=row[idxStock];
+        if(v!==''&&v!==null&&v!==undefined){
+          const n=parseInt(String(v).replace(/[^\d-]/g,''),10);
+          if(!isNaN(n)&&n>=0) entry.stock=n;
+        }
+      }
+      if(idxCost>=0){
+        const v=row[idxCost];
+        if(v!==''&&v!==null&&v!==undefined){
+          const n=parseFloat(String(v).replace(/[^\d.\-]/g,''));
+          if(!isNaN(n)&&n>=0) entry.cost_with_isv=n;
+        }
+      }
+      if(idxName>=0){
+        const v=row[idxName];
+        if(v!==''&&v!==null&&v!==undefined){entry.name=String(v).trim();}
+      }
+      if(idxCat>=0){
+        const v=row[idxCat];
+        if(v!==''&&v!==null&&v!==undefined){entry.cat=String(v).trim();}
+      }
+      rows.push(entry);
+    }
+    if(rows.length===0){throw new Error('No se encontraron filas con CodProducto');}
+    bulkParsedRows=rows;
+    msg.innerHTML='✅ <b>'+rows.length+'</b> filas leídas. Generando vista previa...';
+    const preview=await api('/api/inventory/bulk-update',{
+      method:'POST',
+      body:JSON.stringify({rows,isv_rate:0.15,commit:false}),
+    });
+    renderBulkPreview(preview);
+  }catch(err){
+    msg.textContent='⚠️ '+err.message;
+    bulkParsedRows=null;
+  }
+}
+function renderBulkPreview(p){
+  document.getElementById('bulkStep1').style.display='none';
+  document.getElementById('bulkStep2').style.display='block';
+  document.getElementById('bulkBackBtn').style.display='inline-flex';
+  document.getElementById('bulkConfirmBtn').style.display=p.would_update>0?'inline-flex':'none';
+  document.getElementById('bulkSummary').innerHTML=
+    '<div style="font-size:14px;"><b>📊 Resumen</b></div>'+
+    '<div style="margin-top:8px;font-size:13px;line-height:1.8;">'+
+    '• Total de filas en el archivo: <b>'+p.total_rows+'</b><br>'+
+    '• <span style="color:#10b981;">✓ Se actualizarán: <b>'+p.would_update+'</b></span><br>'+
+    '• <span style="color:var(--text2);">Sin cambios (iguales): '+p.no_changes+'</span><br>'+
+    '• <span style="color:#f59e0b;">⚠️ Códigos no encontrados: '+p.not_found+'</span><br>'+
+    '• <span style="color:#ef4444;">✘ Inválidos (duplicados, etc.): '+p.invalid+'</span>'+
+    '</div>';
+  const det=document.getElementById('bulkDetails');
+  const rows=(p.results||[]).filter(r=>r.action==='updated'||r.action==='skipped_not_found'||r.action==='invalid');
+  if(rows.length===0){
+    det.innerHTML='<div style="color:var(--text2);">(Nada para mostrar — todo igual a lo que ya tenías)</div>';
+    return;
+  }
+  const shown=rows.slice(0,80);
+  det.innerHTML=shown.map(r=>{
+    // Para filas que matchearon un producto de la BD, mostrar solo el
+    // nombre (lo pidio el usuario). Para filas sin match, no hay name
+    // asi que mostramos el code tal como venia en el archivo.
+    const label=r.name?esc(r.name):esc(r.code);
+    if(r.action==='updated'){
+      return '<div style="padding:5px 0;border-bottom:1px solid var(--border);"><b>'+label+'</b><br>&nbsp;&nbsp;'+
+        r.changes.map(c=>'<span style="color:#10b981;">'+esc(c)+'</span>').join(' · ')+'</div>';
+    }
+    if(r.action==='skipped_not_found'){
+      return '<div style="padding:5px 0;border-bottom:1px solid var(--border);color:#f59e0b;">⚠️ <b>'+esc(r.code)+'</b> — no existe en el inventario</div>';
+    }
+    return '<div style="padding:5px 0;border-bottom:1px solid var(--border);color:#ef4444;">✘ <b>'+label+'</b> — '+esc(r.reason||'inválido')+'</div>';
+  }).join('')+(rows.length>shown.length?'<div style="color:var(--text2);margin-top:8px;">... y '+(rows.length-shown.length)+' más</div>':'');
+}
+async function commitBulkUpdate(){
+  if(!bulkParsedRows||bulkParsedRows.length===0) return;
+  if(!confirm('¿Confirmar aplicación de los cambios al inventario?')) return;
+  try{
+    showLoader(true);
+    const res=await api('/api/inventory/bulk-update',{
+      method:'POST',
+      body:JSON.stringify({rows:bulkParsedRows,isv_rate:0.15,commit:true}),
+    });
+    showToast('✅ '+res.would_update+' productos actualizados');
+    await loadInventory();
+    renderInventory();
+    closeBulkModal();
+  }catch(err){
+    showToast('⚠️ '+err.message,true);
+  }finally{
+    showLoader(false);
+  }
+}
+
+async function deleteItem(id){
+  if(!confirm('¿Eliminar este accesorio?')) return;
+  try{
+    showLoader(true);
+    await api('/api/inventory/'+id,{method:'DELETE'});
+    await loadInventory();
+    renderInventory();
+    showToast('🗑️ Eliminado');
+  }catch(err){
+    showToast('⚠️ '+err.message,true);
+  }finally{
+    showLoader(false);
+  }
+}
+
+// ── REGISTRO DE USO ──────────────────────────────────────
+let usageQtys={};
+function renderUsageList(){
+  const all=getInventory();
+  const q=(document.getElementById('searchUso').value||'').toLowerCase().trim();
+  const catSel=document.getElementById('filterCatUso');
+  const prev=catSel.value;
+  const cats=[...new Set(all.map(i=>(i.cat||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  catSel.innerHTML='<option value="">Todas las categorías</option>'+cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  catSel.value=cats.includes(prev)?prev:'';
+  const catF=catSel.value;
+  let items=all;
+  if(catF) items=items.filter(i=>(i.cat||'').trim()===catF);
+  if(q) items=items.filter(i=>i.code.toLowerCase().includes(q)||i.name.toLowerCase().includes(q));
+  const list=document.getElementById('usageList');
+  if(items.length===0){list.innerHTML='<div class="empty-state"><span class="empty-icon">📦</span><p>No hay accesorios</p></div>';return;}
+  list.innerHTML=items.map(i=>{
+    const s=Number(i.stock||0);
+    const cls=s===0?'stock-zero':(s<=20?'stock-low':'stock-ok');
+    return `
+    <div class="usage-item">
+      <div class="item-info">
+        <div class="item-name">${esc(i.name)}</div>
+        <div class="item-code">${esc(i.code)}${i.cat?` · ${esc(i.cat)}`:''}</div>
+        <div class="stock-badge ${cls}">📦 Stock: <strong>${s}</strong></div>
+      </div>
+      <input type="number" class="qty-input" min="0" value="${usageQtys[i.id]||0}"
+        oninput="usageQtys[${i.id}]=Math.max(0,parseInt(this.value)||0);this.value=usageQtys[${i.id}]" placeholder="0">
+    </div>`;
+  }).join('');
+}
+async function saveUsage(){
+  const items=[];
+  const inv=getInventory();
+  for(const id in usageQtys){
+    const qty=usageQtys[id];
+    if(qty<=0) continue;
+    const item=inv.find(i=>i.id===parseInt(id));
+    if(!item) continue;
+    items.push({id:item.id,code:item.code,name:item.name,qtyUsed:qty});
+  }
+  if(items.length===0){showToast('Ingresa al menos 1 accesorio usado',true);return;}
+  try{
+    showLoader(true);
+    await api('/api/usage',{method:'POST',body:JSON.stringify({items,date:todayStr()})});
+    // Recargar inventario para reflejar el stock descontado en el backend.
+    await Promise.all([loadUsage(),loadInventory()]);
+    usageQtys={};
+    showToast('✅ Uso registrado correctamente');
+    renderUsageList();
+    renderDashboard();
+  }catch(err){
+    showToast('⚠️ '+err.message,true);
+  }finally{
+    showLoader(false);
+  }
+}
+
+// ── HISTORIAL ────────────────────────────────────────────
+let currentHistTab='hoy';
+function switchHistTab(tab){
+  currentHistTab=tab;
+  document.getElementById('htHoy').classList.toggle('active',tab==='hoy');
+  document.getElementById('htSemana').classList.toggle('active',tab==='semana');
+  document.getElementById('htMes').classList.toggle('active',tab==='mes');
+  document.getElementById('hpHoy').classList.toggle('active',tab==='hoy');
+  document.getElementById('hpSemana').classList.toggle('active',tab==='semana');
+  document.getElementById('hpMes').classList.toggle('active',tab==='mes');
+  renderHistorial();
+}
+
+function renderHistorial(){
+  if(currentHistTab==='hoy') renderHistHoy();
+  else if(currentHistTab==='semana') renderHistSemana();
+  else renderHistMes();
+}
+
+function renderHistHoy(){
+  const today=todayStr();
+  const usage=getUsage().filter(u=>u.date===today);
+  const div=document.getElementById('histHoyContent');
+  if(usage.length===0){
+    div.innerHTML=`<div class="empty-state"><span class="empty-icon">📋</span><p>No hay registros hoy<br><span style="font-size:12px;">${formatDate(today)}</span></p></div>`;
+    return;
+  }
+  const isAdmin=currentUser.role==='admin';
+  const summary={};
+  usage.forEach(u=>u.items.forEach(i=>{
+    const c=getCostForItem(i);
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0,cost:c,subtotal:0};
+    summary[i.code].total+=i.qtyUsed;
+    summary[i.code].subtotal+=i.qtyUsed*c;
+  }));
+  const totalUnidades=Object.values(summary).reduce((a,s)=>a+s.total,0);
+  const totalCosto=Object.values(summary).reduce((a,s)=>a+s.subtotal,0);
+  const totalRegs=usage.length;
+
+  // Registros individuales (para admin con botón borrar)
+  const regsHtml=usage.map((u,idx)=>{
+    const total=u.items.reduce((a,i)=>a+i.qtyUsed,0);
+    const subtotalReg=u.items.reduce((a,i)=>a+i.qtyUsed*getCostForItem(i),0);
+    const detalle=u.items.map(i=>{
+      const c=getCostForItem(i);
+      const sub=c*i.qtyUsed;
+      const costoLine=isAdmin?`<div style="font-size:11px;color:var(--text2);">${formatLempira(withIsv(c))} c/u · <strong style="color:var(--green)">${formatLempira(withIsv(sub))}</strong> <span style="color:#79b8ff">(s/ISV ${formatLempira(sub)})</span></div>`:'';
+      return `
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
+        <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div>${costoLine}</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:var(--accent);">${i.qtyUsed}</div>
+      </div>`;
+    }).join('');
+    const hora=formatTime(u.ts);
+    return `<div class="uso-card" style="margin-bottom:8px;">
+      <div class="uso-card-header" onclick="toggleUsoH('rh-${idx}')">
+        <div class="uso-card-info">
+          <div class="uso-card-title">🕐 ${hora} &nbsp;<span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">por ${esc(u.user)}</span></div>
+          <div class="uso-card-sub">${u.items.length} artículo(s) · <strong style="color:var(--accent)">${total}</strong> unidades${isAdmin?` · <strong style="color:var(--green)">${formatLempira(withIsv(subtotalReg))}</strong> <span style="color:#79b8ff">(s/ISV ${formatLempira(subtotalReg)})</span>`:''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${isAdmin?`<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteUsageRecord(${u.id})">🗑️</button>`:''}
+          <span class="uso-chevron" id="chev-rh-${idx}">▼</span>
+        </div>
+      </div>
+      <div class="uso-detail" id="detail-rh-${idx}">
+        <div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Detalle</div>
+        ${detalle}
+      </div>
+    </div>`;
+  }).join('');
+
+  const costoBox=isAdmin?`
+    <div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;border:1px solid rgba(46,160,67,.35);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total del día (con ISV 15%)</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(withIsv(totalCosto))}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+        <div style="color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:1px;">Subtotal sin ISV</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:600;color:#79b8ff">${formatLempira(totalCosto)}</div>
+      </div>
+    </div>`:'';
+  div.innerHTML=`
+    <div style="background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:12px;display:flex;justify-content:space-between;">
+      <div><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--accent)">${totalUnidades}</div><div style="color:var(--text2);font-size:11px;">unidades totales</div></div>
+      <div style="text-align:center"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--blue)">${totalRegs}</div><div style="color:var(--text2);font-size:11px;">registros del día</div></div>
+      <div style="text-align:right"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--green)">${Object.keys(summary).length}</div><div style="color:var(--text2);font-size:11px;">tipos diferentes</div></div>
+    </div>
+    ${costoBox}
+    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📅 ${formatDate(today)} — Resumen total</div>
+    ${Object.values(summary).sort((a,b)=>b.total-a.total).map(s=>`
+      <div class="hist-item">
+        <div class="item-info">
+          <div class="item-name">${esc(s.name)}</div>
+          <div class="item-code">${esc(s.code)}${isAdmin?` · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.cost))} c/u c/ISV)</span>`:''}</div>
+        </div>
+        <div class="hist-qty">${s.total}</div>
+      </div>`).join('')}
+    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:14px 0 8px;">
+      🕐 Registros individuales${isAdmin?' <span style="font-size:10px;color:var(--red);font-family:Noto Sans;text-transform:none;">(Admin: toca 🗑️ para eliminar)</span>':''}
+    </div>
+    ${regsHtml}`;
+}
+
+function toggleUsoH(id){
+  const det=document.getElementById('detail-'+id);
+  const chev=document.getElementById('chev-'+id);
+  if(!det||!chev) return;
+  const isOpen=det.classList.contains('open');
+  det.classList.toggle('open',!isOpen);
+  chev.classList.toggle('open',!isOpen);
+}
+
+async function deleteUsageRecord(id){
+  // Avisar al admin si alguno de los accesorios del registro ya no existe
+  // en el inventario \u2014 en ese caso el stock no podra ser restaurado para
+  // ese accesorio (porque ya fue borrado) y solo se borra el registro.
+  const usage=getUsage().find(u=>u.id===id);
+  const inv=getInventory();
+  const invIds=new Set(inv.map(x=>x.id));
+  const missing=usage?usage.items.filter(it=>!invIds.has(it.id)):[];
+  let msg='¿Eliminar este registro? Se quitará del historial y de los reportes.';
+  if(missing.length>0){
+    const list=missing.map(m=>esc(m.name||m.code||'?')).join(', ');
+    msg='⚠️ Atención: este registro incluye accesorios que ya no existen en el inventario ('+list+'). El stock NO podrá ser restaurado para esos accesorios (porque fueron borrados). El registro solo se quitará del historial.\n\n¿Continuar?';
+  }
+  if(!confirm(msg)) return;
+  try{
+    showLoader(true);
+    await api('/api/usage/'+id,{method:'DELETE'});
+    // El backend devuelve las unidades al stock; recargamos inventario para
+    // que la UI refleje el nuevo valor.
+    await Promise.all([loadUsage(),loadInventory()]);
+    showToast(missing.length>0
+      ?'🗑️ Registro eliminado (sin restaurar accesorios borrados)'
+      :'🗑️ Registro eliminado');
+    renderHistorial();
+    renderDashboard();
+  }catch(err){
+    showToast('⚠️ '+err.message,true);
+  }finally{
+    showLoader(false);
+  }
+}
+
+function renderHistSemana(){
+  const div=document.getElementById('histSemanaContent');
+  if(currentUser.role!=='admin'){
+    div.innerHTML=`<div class="locked-msg"><span class="lock-icon">🔒</span>El reporte semanal está disponible<br>solo para el <strong>Administrador</strong>.</div>`;
+    return;
+  }
+  const today=todayStr();
+  const monday=getMondayOf(today);
+  const sunday=getSundayOf(monday);
+  const usage=getUsage().filter(u=>u.date>=monday&&u.date<=sunday);
+  if(usage.length===0){
+    div.innerHTML=`<div class="empty-state"><span class="empty-icon">📊</span><p>No hay registros esta semana</p></div>`;
+    return;
+  }
+  // Resumen total de la semana
+  const summary={};
+  usage.forEach(u=>u.items.forEach(i=>{
+    const c=getCostForItem(i);
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0,cost:c,subtotal:0};
+    summary[i.code].total+=i.qtyUsed;
+    summary[i.code].subtotal+=i.qtyUsed*c;
+  }));
+  const totalUnidades=Object.values(summary).reduce((a,s)=>a+s.total,0);
+  const totalCosto=Object.values(summary).reduce((a,s)=>a+s.subtotal,0);
+
+  // Agrupar por día
+  const byDay={};
+  usage.forEach(u=>{
+    if(!byDay[u.date]) byDay[u.date]=[];
+    byDay[u.date].push(u);
+  });
+
+  let html=`
+    <div style="background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:12px;display:flex;justify-content:space-between;">
+      <div><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--accent)">${totalUnidades}</div><div style="color:var(--text2);font-size:11px;">total semana</div></div>
+      <div style="text-align:center"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--blue)">${usage.length}</div><div style="color:var(--text2);font-size:11px;">registros</div></div>
+      <div style="text-align:right"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--green)">${Object.keys(byDay).length}</div><div style="color:var(--text2);font-size:11px;">días activos</div></div>
+    </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;border:1px solid rgba(46,160,67,.35);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total semana (con ISV 15%)</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(withIsv(totalCosto))}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+        <div style="color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:1px;">Subtotal sin ISV</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:600;color:#79b8ff">${formatLempira(totalCosto)}</div>
+      </div>
+    </div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📊 Resumen semanal — ${formatDate(monday)} al ${formatDate(sunday)}</div>
+    ${Object.values(summary).sort((a,b)=>b.total-a.total).map(s=>`
+      <div class="hist-item">
+        <div class="item-info">
+          <div class="item-name">${esc(s.name)}</div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.cost))} c/u c/ISV)</span></div>
+        </div>
+        <div class="hist-qty">${s.total}</div>
+      </div>`).join('')}
+    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:16px 0 8px;">📅 Detalle por Día</div>`;
+
+  Object.keys(byDay).sort().forEach(date=>{
+    const regs=byDay[date];
+    const daySummary={};
+    regs.forEach(u=>u.items.forEach(i=>{
+      const c=getCostForItem(i);
+      if(!daySummary[i.code]) daySummary[i.code]={code:i.code,name:i.name,total:0,cost:c,subtotal:0};
+      daySummary[i.code].total+=i.qtyUsed;
+      daySummary[i.code].subtotal+=i.qtyUsed*c;
+    }));
+    const dayTotal=Object.values(daySummary).reduce((a,s)=>a+s.total,0);
+    const dayCosto=Object.values(daySummary).reduce((a,s)=>a+s.subtotal,0);
+    html+=`<div class="hist-day-header"><span>📅 ${formatDate(date)}</span><span><strong>${dayTotal} uds.</strong> · <strong style="color:var(--green)">${formatLempira(withIsv(dayCosto))}</strong> <span style="color:#79b8ff;font-size:11px;">(s/ISV ${formatLempira(dayCosto)})</span></span></div>`;
+    html+=Object.values(daySummary).sort((a,b)=>b.total-a.total).map(s=>`
+      <div class="hist-item" style="margin-bottom:6px;">
+        <div class="item-info">
+          <div class="item-name">${esc(s.name)}</div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span></div>
+        </div>
+        <div class="hist-qty" style="font-size:20px;">${s.total}</div>
+      </div>`).join('');
+    // Registros individuales del día con botón borrar
+    html+=`<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:8px 0 4px;padding-left:4px;">Registros individuales — toca 🗑️ para eliminar</div>`;
+    html+=regs.map((u,ri)=>{
+      const total=u.items.reduce((a,i)=>a+i.qtyUsed,0);
+      const subtotalReg=u.items.reduce((a,i)=>a+i.qtyUsed*getCostForItem(i),0);
+      const hora=formatTime(u.ts);
+      const key='sw-'+date.replace(/-/g,'')+'-'+ri;
+      const detalle=u.items.map(i=>{
+        const c=getCostForItem(i);
+        const sub=c*i.qtyUsed;
+        return `
+        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
+          <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div><div style="font-size:11px;color:var(--text2);">${formatLempira(withIsv(c))} c/u · <strong style="color:var(--green)">${formatLempira(withIsv(sub))}</strong> <span style="color:#79b8ff">(s/ISV ${formatLempira(sub)})</span></div></div>
+          <div style="font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;color:var(--accent);">${i.qtyUsed}</div>
+        </div>`;
+      }).join('');
+      return `<div class="uso-card" style="margin-bottom:6px;">
+        <div class="uso-card-header" onclick="toggleUsoH('${key}')">
+          <div class="uso-card-info">
+            <div class="uso-card-title">🕐 ${hora} · <span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">${esc(u.user)}</span></div>
+            <div class="uso-card-sub">${u.items.length} art. · <strong style="color:var(--accent)">${total}</strong> uds. · <strong style="color:var(--green)">${formatLempira(withIsv(subtotalReg))}</strong> <span style="color:#79b8ff">(s/ISV ${formatLempira(subtotalReg)})</span></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteUsageRecord(${u.id})">🗑️</button>
+            <span class="uso-chevron" id="chev-${key}">▼</span>
+          </div>
+        </div>
+        <div class="uso-detail" id="detail-${key}">${detalle}</div>
+      </div>`;
+    }).join('');
+  });
+
+  div.innerHTML=html;
+}
+
+function renderHistMes(){
+  const div=document.getElementById('histMesContent');
+  if(currentUser.role!=='admin'){
+    div.innerHTML=`<div class="locked-msg"><span class="lock-icon">🔒</span>El reporte mensual está disponible<br>solo para el <strong>Administrador</strong>.</div>`;
+    return;
+  }
+  const today=todayStr();
+  const ym=today.slice(0,7);
+  const [y,m]=ym.split('-').map(Number);
+  const from=`${ym}-01`;
+  const lastDay=new Date(y,m,0).getDate();
+  const to=`${ym}-${String(lastDay).padStart(2,'0')}`;
+  const usage=getUsage().filter(u=>u.date>=from&&u.date<=to);
+  const mesesLargo=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const tituloMes=`${mesesLargo[m-1]} ${y}`;
+  if(usage.length===0){
+    div.innerHTML=`<div class="empty-state"><span class="empty-icon">📆</span><p>No hay registros en ${tituloMes}</p></div>`;
+    return;
+  }
+  // Resumen total del mes
+  const summary={};
+  usage.forEach(u=>u.items.forEach(i=>{
+    const c=getCostForItem(i);
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0,cost:c,subtotal:0};
+    summary[i.code].total+=i.qtyUsed;
+    summary[i.code].subtotal+=i.qtyUsed*c;
+  }));
+  const totalUnidades=Object.values(summary).reduce((a,s)=>a+s.total,0);
+  const totalCosto=Object.values(summary).reduce((a,s)=>a+s.subtotal,0);
+
+  // Agrupar por día
+  const byDay={};
+  usage.forEach(u=>{
+    if(!byDay[u.date]) byDay[u.date]=[];
+    byDay[u.date].push(u);
+  });
+
+  let html=`
+    <div style="background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:12px;display:flex;justify-content:space-between;">
+      <div><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--accent)">${totalUnidades}</div><div style="color:var(--text2);font-size:11px;">total del mes</div></div>
+      <div style="text-align:center"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--blue)">${usage.length}</div><div style="color:var(--text2);font-size:11px;">registros</div></div>
+      <div style="text-align:right"><div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--green)">${Object.keys(byDay).length}</div><div style="color:var(--text2);font-size:11px;">días activos</div></div>
+    </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px;border:1px solid rgba(46,160,67,.35);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;">💰 Costo total ${tituloMes} (con ISV 15%)</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--green)">${formatLempira(withIsv(totalCosto))}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+        <div style="color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:1px;">Subtotal sin ISV</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:600;color:#79b8ff">${formatLempira(totalCosto)}</div>
+      </div>
+    </div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📆 Resumen de ${tituloMes}</div>
+    ${Object.values(summary).sort((a,b)=>b.total-a.total).map(s=>`
+      <div class="hist-item">
+        <div class="item-info">
+          <div class="item-name">${esc(s.name)}</div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span> <span style="color:var(--text2);">(${formatLempira(withIsv(s.cost))} c/u c/ISV)</span></div>
+        </div>
+        <div class="hist-qty">${s.total}</div>
+      </div>`).join('')}
+    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:16px 0 8px;">📅 Detalle por Día</div>`;
+
+  Object.keys(byDay).sort().forEach(date=>{
+    const regs=byDay[date];
+    const daySummary={};
+    regs.forEach(u=>u.items.forEach(i=>{
+      const c=getCostForItem(i);
+      if(!daySummary[i.code]) daySummary[i.code]={code:i.code,name:i.name,total:0,cost:c,subtotal:0};
+      daySummary[i.code].total+=i.qtyUsed;
+      daySummary[i.code].subtotal+=i.qtyUsed*c;
+    }));
+    const dayTotal=Object.values(daySummary).reduce((a,s)=>a+s.total,0);
+    const dayCosto=Object.values(daySummary).reduce((a,s)=>a+s.subtotal,0);
+    html+=`<div class="hist-day-header"><span>📅 ${formatDate(date)}</span><span><strong>${dayTotal} uds.</strong> · <strong style="color:var(--green)">${formatLempira(withIsv(dayCosto))}</strong> <span style="color:#79b8ff;font-size:11px;">(s/ISV ${formatLempira(dayCosto)})</span></span></div>`;
+    html+=Object.values(daySummary).sort((a,b)=>b.total-a.total).map(s=>`
+      <div class="hist-item" style="margin-bottom:6px;">
+        <div class="item-info">
+          <div class="item-name">${esc(s.name)}</div>
+          <div class="item-code">${esc(s.code)} · <span style="color:var(--green)">${formatLempira(withIsv(s.subtotal))}</span> <span style="color:#79b8ff">(s/ISV ${formatLempira(s.subtotal)})</span></div>
+        </div>
+        <div class="hist-qty" style="font-size:20px;">${s.total}</div>
+      </div>`).join('');
+    html+=`<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:8px 0 4px;padding-left:4px;">Registros individuales — toca 🗑️ para eliminar</div>`;
+    html+=regs.map((u,ri)=>{
+      const total=u.items.reduce((a,i)=>a+i.qtyUsed,0);
+      const subtotalReg=u.items.reduce((a,i)=>a+i.qtyUsed*getCostForItem(i),0);
+      const hora=formatTime(u.ts);
+      const key='sm-'+date.replace(/-/g,'')+'-'+ri;
+      const detalle=u.items.map(i=>{
+        const c=getCostForItem(i);
+        const sub=c*i.qtyUsed;
+        return `
+        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
+          <div><div style="font-size:13px;">${esc(i.name)}</div><div style="font-size:11px;color:var(--text2);">${esc(i.code)}</div><div style="font-size:11px;color:var(--text2);">${formatLempira(withIsv(c))} c/u · <strong style="color:var(--green)">${formatLempira(withIsv(sub))}</strong> <span style="color:#79b8ff">(s/ISV ${formatLempira(sub)})</span></div></div>
+          <div style="font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;color:var(--accent);">${i.qtyUsed}</div>
+        </div>`;
+      }).join('');
+      return `<div class="uso-card" style="margin-bottom:6px;">
+        <div class="uso-card-header" onclick="toggleUsoH('${key}')">
+          <div class="uso-card-info">
+            <div class="uso-card-title">🕐 ${hora} · <span style="color:var(--text2);font-size:12px;font-family:'Noto Sans';">${esc(u.user)}</span></div>
+            <div class="uso-card-sub">${u.items.length} art. · <strong style="color:var(--accent)">${total}</strong> uds. · <strong style="color:var(--green)">${formatLempira(withIsv(subtotalReg))}</strong> <span style="color:#79b8ff">(s/ISV ${formatLempira(subtotalReg)})</span></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteUsageRecord(${u.id})">🗑️</button>
+            <span class="uso-chevron" id="chev-${key}">▼</span>
+          </div>
+        </div>
+        <div class="uso-detail" id="detail-${key}">${detalle}</div>
+      </div>`;
+    }).join('');
+  });
+
+  div.innerHTML=html;
+}
+
+// ── REPORTES EXCEL ───────────────────────────────────────
+// Formato numerico estilo "L. 1,234.56" para Excel.
+const LPS_FMT='"L." #,##0.00';
+function applyCostoFormat(ws,colLetters){
+  // colLetters: array de letras de columna a formatear como Lempiras (ej: ['D','E']).
+  const range=XLSX.utils.decode_range(ws['!ref']);
+  for(const L of colLetters){
+    const col=XLSX.utils.decode_col(L);
+    for(let r=1;r<=range.e.r;r++){ // saltar header
+      const addr=XLSX.utils.encode_cell({c:col,r});
+      const cell=ws[addr];
+      if(cell&&typeof cell.v==='number') cell.z=LPS_FMT;
+    }
+  }
+}
+
+function getSummaryForDate(date){
+  const usage=getUsage().filter(u=>u.date===date);
+  const summary={};
+  usage.forEach(u=>u.items.forEach(i=>{
+    const c=getCostForItem(i);
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0,cost:c,subtotal:0};
+    summary[i.code].total+=i.qtyUsed;
+    summary[i.code].subtotal+=i.qtyUsed*c;
+  }));
+  return Object.values(summary);
+}
+
+function exportDaily(){
+  const date=document.getElementById('reportDate').value;
+  if(!date){showToast('Selecciona una fecha',true);return;}
+  const rows=getSummaryForDate(date);
+  if(rows.length===0){showToast('No hay uso registrado para esa fecha',true);return;}
+  const totalUds=rows.reduce((a,r)=>a+r.total,0);
+  const totalCost=rows.reduce((a,r)=>a+r.subtotal,0);
+  const wb=XLSX.utils.book_new();
+  const wsData=[
+    ['Codigo','Descripcion','Cantidad Utilizado','Subtotal SIN ISV','Subtotal CON ISV'],
+    ...rows.map(r=>[r.code,r.name,r.total,r.subtotal,withIsv(r.subtotal)]),
+    ['','TOTAL',totalUds,totalCost,withIsv(totalCost)],
+  ];
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols']=[{wch:14},{wch:38},{wch:14},{wch:18},{wch:18}];
+  applyCostoFormat(ws,['D','E']);
+  XLSX.utils.book_append_sheet(wb,ws,'Reporte Diario');
+  XLSX.writeFile(wb,`Reporte_Diario_${date}.xlsx`);
+  showToast('📥 Excel descargado');
+}
+
+function exportWeekly(){
+  const anyDay=document.getElementById('weekStart').value;
+  if(!anyDay){showToast('Selecciona una fecha',true);return;}
+  const monday=getMondayOf(anyDay);
+  const sunday=getSundayOf(monday);
+  const usage=getUsage().filter(u=>u.date>=monday&&u.date<=sunday);
+  if(usage.length===0){showToast('No hay uso en esa semana',true);return;}
+  const summary={};
+  usage.forEach(u=>u.items.forEach(i=>{
+    const c=getCostForItem(i);
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0,cost:c,subtotal:0};
+    summary[i.code].total+=i.qtyUsed;
+    summary[i.code].subtotal+=i.qtyUsed*c;
+  }));
+  const list=Object.values(summary).sort((a,b)=>b.total-a.total);
+  const totalUds=list.reduce((a,r)=>a+r.total,0);
+  const totalCost=list.reduce((a,r)=>a+r.subtotal,0);
+  const wb=XLSX.utils.book_new();
+  const ws1=XLSX.utils.aoa_to_sheet([
+    ['Codigo','Descripcion','Cantidad Utilizado','Subtotal SIN ISV','Subtotal CON ISV'],
+    ...list.map(s=>[s.code,s.name,s.total,s.subtotal,withIsv(s.subtotal)]),
+    ['','TOTAL',totalUds,totalCost,withIsv(totalCost)],
+  ]);
+  ws1['!cols']=[{wch:14},{wch:38},{wch:14},{wch:18},{wch:18}];
+  applyCostoFormat(ws1,['D','E']);
+  XLSX.utils.book_append_sheet(wb,ws1,'Resumen Semanal');
+  const detRows=[];
+  let detTotalUds=0,detTotalCost=0;
+  usage.forEach(u=>u.items.forEach(i=>{
+    const c=getCostForItem(i);
+    const sub=i.qtyUsed*c;
+    detTotalUds+=i.qtyUsed;detTotalCost+=sub;
+    detRows.push([u.date,i.code,i.name,i.qtyUsed,sub,withIsv(sub),u.user]);
+  }));
+  const ws2=XLSX.utils.aoa_to_sheet([
+    ['Fecha','Codigo','Descripcion','Cantidad Utilizado','Subtotal SIN ISV','Subtotal CON ISV','Registrado Por'],
+    ...detRows,
+    ['','','TOTAL',detTotalUds,detTotalCost,withIsv(detTotalCost),''],
+  ]);
+  ws2['!cols']=[{wch:12},{wch:14},{wch:38},{wch:14},{wch:18},{wch:18},{wch:18}];
+  applyCostoFormat(ws2,['E','F']);
+  XLSX.utils.book_append_sheet(wb,ws2,'Detalle por Dia');
+  XLSX.writeFile(wb,`Reporte_Semanal_${monday}_al_${sunday}.xlsx`);
+  showToast('📥 Excel semanal descargado');
+}
+
+function exportMonthly(){
+  const ym=document.getElementById('monthPick').value; // "YYYY-MM"
+  if(!ym||!/^\d{4}-\d{2}$/.test(ym)){showToast('Selecciona un mes',true);return;}
+  const [y,m]=ym.split('-').map(Number);
+  const from=`${ym}-01`;
+  const lastDay=new Date(y,m,0).getDate();
+  const to=`${ym}-${String(lastDay).padStart(2,'0')}`;
+  const usage=getUsage().filter(u=>u.date>=from&&u.date<=to);
+  if(usage.length===0){showToast('No hay uso en ese mes',true);return;}
+  const summary={};
+  usage.forEach(u=>u.items.forEach(i=>{
+    const c=getCostForItem(i);
+    if(!summary[i.code]) summary[i.code]={code:i.code,name:i.name,total:0,cost:c,subtotal:0};
+    summary[i.code].total+=i.qtyUsed;
+    summary[i.code].subtotal+=i.qtyUsed*c;
+  }));
+  const list=Object.values(summary).sort((a,b)=>b.total-a.total);
+  const totalUds=list.reduce((a,r)=>a+r.total,0);
+  const totalCost=list.reduce((a,r)=>a+r.subtotal,0);
+  const wb=XLSX.utils.book_new();
+  const ws1=XLSX.utils.aoa_to_sheet([
+    ['Codigo','Descripcion','Cantidad Utilizado','Subtotal SIN ISV','Subtotal CON ISV'],
+    ...list.map(s=>[s.code,s.name,s.total,s.subtotal,withIsv(s.subtotal)]),
+    ['','TOTAL',totalUds,totalCost,withIsv(totalCost)],
+  ]);
+  ws1['!cols']=[{wch:14},{wch:38},{wch:14},{wch:18},{wch:18}];
+  applyCostoFormat(ws1,['D','E']);
+  XLSX.utils.book_append_sheet(wb,ws1,'Resumen del Mes');
+  const detRows=[];
+  let detTotalUds=0,detTotalCost=0;
+  usage.forEach(u=>u.items.forEach(i=>{
+    const c=getCostForItem(i);
+    const sub=i.qtyUsed*c;
+    detTotalUds+=i.qtyUsed;detTotalCost+=sub;
+    detRows.push([u.date,i.code,i.name,i.qtyUsed,sub,withIsv(sub),u.user]);
+  }));
+  detRows.sort((a,b)=>a[0].localeCompare(b[0]));
+  const ws2=XLSX.utils.aoa_to_sheet([
+    ['Fecha','Codigo','Descripcion','Cantidad Utilizado','Subtotal SIN ISV','Subtotal CON ISV','Registrado Por'],
+    ...detRows,
+    ['','','TOTAL',detTotalUds,detTotalCost,withIsv(detTotalCost),''],
+  ]);
+  ws2['!cols']=[{wch:12},{wch:14},{wch:38},{wch:14},{wch:18},{wch:18},{wch:18}];
+  applyCostoFormat(ws2,['E','F']);
+  XLSX.utils.book_append_sheet(wb,ws2,'Detalle por Dia');
+  XLSX.writeFile(wb,`Reporte_Mensual_${ym}.xlsx`);
+  showToast('📥 Excel mensual descargado');
+}
+
+function exportYearly(){
+  const year=parseInt(document.getElementById('yearPick').value,10);
+  if(!year||year<2000||year>2100){showToast('Selecciona un año válido',true);return;}
+  const yStr=String(year);
+  const usage=getUsage().filter(u=>u.date&&u.date.slice(0,4)===yStr);
+  if(usage.length===0){showToast('No hay uso en ese año',true);return;}
+  const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  // Resumen: fila por codigo, columnas Ene..Dic + Total + Costo + Subtotal
+  const byCode={};
+  usage.forEach(u=>{
+    const mi=parseInt(u.date.slice(5,7),10)-1;
+    u.items.forEach(i=>{
+      const c=getCostForItem(i);
+      if(!byCode[i.code]) byCode[i.code]={code:i.code,name:i.name,cost:c,months:Array(12).fill(0),monthsCost:Array(12).fill(0)};
+      byCode[i.code].months[mi]+=i.qtyUsed;
+      byCode[i.code].monthsCost[mi]+=i.qtyUsed*c;
+    });
+  });
+  const header=['Codigo','Descripcion',...meses,'Total Anual','Subtotal Anual SIN ISV','Subtotal Anual CON ISV'];
+  const rows=Object.values(byCode).map(r=>{
+    const total=r.months.reduce((a,b)=>a+b,0);
+    const subtotal=r.monthsCost.reduce((a,b)=>a+b,0);
+    return [r.code,r.name,...r.months,total,subtotal,withIsv(subtotal)];
+  }).sort((a,b)=>b[14]-a[14]);
+  // Fila de TOTAL al final del resumen anual (indice de col Total Anual = 14)
+  const totalsRow=['','TOTAL'];
+  for(let mi=0;mi<12;mi++) totalsRow.push(rows.reduce((a,r)=>a+r[2+mi],0));
+  const totUdsAnual=rows.reduce((a,r)=>a+r[14],0);
+  const totSubSinIsv=rows.reduce((a,r)=>a+r[15],0);
+  totalsRow.push(totUdsAnual); // Total anual uds (col 14)
+  totalsRow.push(totSubSinIsv); // Subtotal anual sin isv (col 15)
+  totalsRow.push(withIsv(totSubSinIsv)); // Subtotal anual con isv (col 16)
+  const wb=XLSX.utils.book_new();
+  const ws1=XLSX.utils.aoa_to_sheet([header,...rows,totalsRow]);
+  ws1['!cols']=[{wch:14},{wch:38},...Array(12).fill({wch:10}),{wch:14},{wch:22},{wch:22}];
+  // Cols con dinero: O = Subtotal Sin ISV, P = Subtotal Con ISV.
+  applyCostoFormat(ws1,['O','P']);
+  XLSX.utils.book_append_sheet(wb,ws1,'Resumen Anual');
+  // Totales por mes (uds + costo sin/con ISV)
+  const monthTotals=meses.map((n,i)=>{
+    const cost=Object.values(byCode).reduce((a,r)=>a+r.monthsCost[i],0);
+    return [n,rows.reduce((a,r)=>a+r[2+i],0),cost,withIsv(cost)];
+  });
+  const totUds=monthTotals.reduce((a,r)=>a+r[1],0);
+  const totCostMes=monthTotals.reduce((a,r)=>a+r[2],0);
+  monthTotals.push(['TOTAL ANUAL',totUds,totCostMes,withIsv(totCostMes)]);
+  const ws2=XLSX.utils.aoa_to_sheet([['Mes','Cantidad Utilizado','Subtotal SIN ISV','Subtotal CON ISV'],...monthTotals]);
+  ws2['!cols']=[{wch:16},{wch:20},{wch:22},{wch:22}];
+  applyCostoFormat(ws2,['C','D']);
+  XLSX.utils.book_append_sheet(wb,ws2,'Totales por Mes');
+  XLSX.writeFile(wb,`Reporte_Anual_${yStr}.xlsx`);
+  showToast('📥 Excel anual descargado');
+}
+
+// ── USUARIOS ─────────────────────────────────────────────
+let editingUserId=null;
+function renderUsers(){
+  document.getElementById('userList').innerHTML=getUsers().map(u=>{
+    const isMe=u.id===currentUser.id;
+    return `
+    <div class="user-card">
+      <div class="user-avatar ${u.role==='empleado'?'emp':''}">${u.username[0].toUpperCase()}</div>
+      <div style="flex:1">
+        <div style="font-weight:600">${esc(u.username)}${isMe?' <span class="chip">Tú</span>':''}</div>
+        <div style="color:var(--text2);font-size:12px;">${u.role==='admin'?'👑 Administrador':'👤 Empleado'}</div>
+      </div>
+      <div class="item-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openEditUserModal(${u.id})">✏️</button>
+        ${!isMe?`<button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})">🗑️</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+function openAddUserModal(){
+  editingUserId=null;
+  document.getElementById('userModalTitle').textContent='Agregar Usuario';
+  document.getElementById('uPassLabel').textContent='Contraseña';
+  document.getElementById('uPassHint').style.display='none';
+  ['uName','uPass'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('uRole').value='empleado';
+  openModal('userModal');
+}
+function openEditUserModal(id){
+  const u=getUsers().find(x=>x.id===id);
+  if(!u) return;
+  editingUserId=id;
+  document.getElementById('userModalTitle').textContent=u.id===currentUser.id?'Editar mi cuenta':'Editar Usuario';
+  document.getElementById('uPassLabel').textContent='Nueva Contraseña (opcional)';
+  document.getElementById('uPassHint').style.display='block';
+  document.getElementById('uName').value=u.username;
+  document.getElementById('uPass').value='';
+  document.getElementById('uRole').value=u.role;
+  openModal('userModal');
+}
+async function saveUser(){
+  const username=document.getElementById('uName').value.trim();
+  const password=document.getElementById('uPass').value;
+  const role=document.getElementById('uRole').value;
+  if(!username){showToast('El nombre de usuario es obligatorio',true);return;}
+  try{
+    showLoader(true);
+    if(editingUserId){
+      const body={username,role};
+      if(password) body.password=password;
+      await api('/api/users/'+editingUserId,{method:'PUT',body:JSON.stringify(body)});
+      if(editingUserId===currentUser.id){
+        const wasAdmin=currentUser.role==='admin';
+        currentUser.username=username;
+        currentUser.role=role;
+        applyRoleVisibility();
+        // Si el admin se bajo a empleado y esta en una pestana solo-admin,
+        // regresarlo al Dashboard para evitar ver UI sin permisos.
+        if(wasAdmin&&role!=='admin'){
+          const activeTab=document.querySelector('.tab-view.active');
+          if(activeTab&&(activeTab.id==='tabUsuarios'||activeTab.id==='tabReportes')){
+            await switchTab('Dashboard');
+          }
+        }
+      }
+      showToast('✅ Usuario actualizado');
+    }else{
+      if(!password){showToast('La contraseña es obligatoria',true);showLoader(false);return;}
+      await api('/api/users',{method:'POST',body:JSON.stringify({username,password,role})});
+      showToast('✅ Usuario creado');
+    }
+    closeModal('userModal');
+    // GET /api/users es solo-admin. Si el admin se degrado a si mismo, la
+    // llamada falla con 403 y tumba el mensaje de exito; por eso refrescamos
+    // la lista solo si seguimos siendo admin.
+    if(currentUser&&currentUser.role==='admin'){
+      await loadUsers();
+      renderUsers();
+    }
+  }catch(err){
+    showToast('⚠️ '+err.message,true);
+  }finally{
+    showLoader(false);
+  }
+}
+async function deleteUser(id){
+  if(!confirm('¿Eliminar este usuario?')) return;
+  try{
+    showLoader(true);
+    await api('/api/users/'+id,{method:'DELETE'});
+    await loadUsers();
+    renderUsers();
+    showToast('🗑️ Usuario eliminado');
+  }catch(err){
+    showToast('⚠️ '+err.message,true);
+  }finally{
+    showLoader(false);
+  }
+}
+
+// ── CAJAS DE HERRAMIENTAS ────────────────────────────────
+let editingInstId=null;
+let editingHerrId=null;
+let editingPlantillaId=null;
+let revisarCajaId=null;
+
+function switchCajaSubTab(which){
+  const tabs={
+    'cajas':['cjTabCajas','cjPanelCajas'],
+    'plant':['cjTabPlant','cjPanelPlant'],
+    'inst':['cjTabInst','cjPanelInst'],
+    'herr':['cjTabHerr','cjPanelHerr'],
+  };
+  Object.values(tabs).forEach(([t,p])=>{
+    document.getElementById(t).classList.remove('active');
+    document.getElementById(p).classList.remove('active');
+  });
+  const [t,p]=tabs[which];
+  document.getElementById(t).classList.add('active');
+  document.getElementById(p).classList.add('active');
+  if(which==='cajas') renderCajasList();
+  else if(which==='plant') renderPlantillasList();
+  else if(which==='inst') renderInstList();
+  else if(which==='herr') renderHerrList();
+}
+
+function renderCajasTab(){
+  const isAdmin=currentUser&&currentUser.role==='admin';
+  const rangoBar=document.getElementById('cajasRangoBar');
+  rangoBar.style.display=isAdmin?'flex':'none';
+  if(isAdmin) updateRangoButtons();
+  renderCajasList();
+  renderInstList();
+  renderHerrList();
+  renderPlantillasList();
+}
+
+function updateRangoButtons(){
+  ['hoy','semana','all'].forEach(r=>{
+    const id={'hoy':'cjRangoHoy','semana':'cjRangoSem','all':'cjRangoAll'}[r];
+    const btn=document.getElementById(id);
+    if(!btn) return;
+    btn.className='btn '+(cajasRango===r?'btn-primary':'btn-secondary');
+  });
+}
+async function setCajasRango(r){
+  cajasRango=r;
+  updateRangoButtons();
+  try{
+    showLoader(true);
+    await loadCajas();
+    renderCajasList();
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+
+function cajaFormatHora(iso){
+  if(!iso) return '--:--';
+  try{
+    let s=new Date(iso).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
+    return s.replace('AM','a.m.').replace('PM','p.m.');
+  }catch{return '--:--';}
+}
+function cajaFormatFechaHora(iso){
+  if(!iso) return '';
+  try{
+    const d=new Date(iso);
+    return formatDate(d.toISOString().split('T')[0])+' '+cajaFormatHora(iso);
+  }catch{return '';}
+}
+
+function renderCajasList(){
+  const list=getCajas();
+  const cont=document.getElementById('cajasList');
+  if(!list.length){
+    cont.innerHTML='<div style="color:var(--text2);text-align:center;padding:30px;">Aún no hay cajas asignadas. Pulsa "＋ Asignar nueva caja".</div>';
+    return;
+  }
+  // Agrupar por fecha.
+  const byDate={};
+  list.forEach(c=>{(byDate[c.fecha]=byDate[c.fecha]||[]).push(c);});
+  const dates=Object.keys(byDate).sort().reverse();
+  let html='';
+  dates.forEach(fecha=>{
+    html+=`<div style="color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:1px;margin:10px 0 6px;font-family:'Rajdhani',sans-serif;font-weight:600;">📅 ${formatDate(fecha)}</div>`;
+    byDate[fecha].forEach(c=>{html+=renderCajaCard(c);});
+  });
+  cont.innerHTML=html;
+}
+
+function renderCajaCard(c){
+  const pendiente=c.estado==='pendiente';
+  const completa=c.estado==='completa';
+  const faltante=c.estado==='faltante';
+  let badgeColor,badgeBg,badgeBorder,badgeText;
+  if(pendiente){badgeColor='#d29922';badgeBg='rgba(210,153,34,.15)';badgeBorder='rgba(210,153,34,.35)';badgeText='⏳ Pendiente de revisar';}
+  else if(completa){badgeColor='#56d364';badgeBg='rgba(46,160,67,.15)';badgeBorder='rgba(46,160,67,.35)';badgeText='✓ Caja completa';}
+  else {badgeColor='#f85149';badgeBg='rgba(248,81,73,.15)';badgeBorder='rgba(248,81,73,.35)';badgeText=`⚠️ Faltante — ${c.total_devueltas}/${c.total_entregadas} devueltas`;}
+  const instNames=(c.instaladores||[]).join(', ')||'(sin instaladores)';
+  const itemsHtml=(c.items||[]).map(it=>{
+    let icon,estadoTxt,estadoColor;
+    if(it.estado==='pendiente'){icon='⏳';estadoTxt='Pendiente';estadoColor='#d29922';}
+    else if(it.estado==='devuelta'){icon='☑';estadoTxt='↩ Devuelta';estadoColor='#56d364';}
+    else {icon='☐';estadoTxt=`❌ FALTANTE ${it.cantidad_entregada-it.cantidad_devuelta}`;estadoColor='#f85149';}
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed var(--border);">
+      <div style="flex:1;"><span style="color:${estadoColor};font-weight:700;margin-right:8px;font-size:16px;">${icon}</span><span style="color:var(--text2);font-weight:700;margin-right:6px;">${it.cantidad_entregada}</span><span>${esc(it.herramienta_nombre)}</span></div>
+      <div style="color:${estadoColor};font-size:12px;font-weight:600;white-space:nowrap;">${estadoTxt}</div>
+    </div>`;
+  }).join('');
+  const revisadaHtml=c.revisada_por
+    ?`<div style="color:var(--text2);font-size:11px;margin-top:8px;">✔ Revisado por: <b>${esc(c.revisada_por)}</b> — ${cajaFormatFechaHora(c.hora_revision)}</div>`
+    :'';
+  const notasHtml=c.notas?`<div style="color:var(--text2);font-size:11px;margin-top:4px;font-style:italic;">📝 ${esc(c.notas)}</div>`:'';
+  const isAdmin=currentUser&&currentUser.role==='admin';
+  const deleteBtn=isAdmin?`<button class="btn btn-secondary" onclick="deleteCaja(${c.id})">🗑 Borrar</button>`:'';
+  const actions=pendiente
+    ? `<button class="btn btn-green" onclick="openRevisarModal(${c.id})">👁 Revisar al regreso</button>${deleteBtn}`
+    : `<button class="btn btn-secondary" onclick="openRevisarModal(${c.id})">✏️ Corregir revisión</button>${deleteBtn}`;
+  return `<div class="stat-card" style="padding:14px;margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px;">
+      <div style="flex:1;">
+        <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:15px;">👷 ${esc(instNames)}</div>
+        <div style="color:var(--text2);font-size:12px;margin-top:2px;">🧰 Caja entregada a las <b>${cajaFormatHora(c.hora_entrega)}</b></div>
+      </div>
+    </div>
+    <div style="display:inline-block;padding:4px 10px;border-radius:999px;background:${badgeBg};color:${badgeColor};border:1px solid ${badgeBorder};font-size:11px;font-weight:700;letter-spacing:.5px;margin-bottom:10px;">${badgeText}</div>
+    <div style="margin:8px 0;">${itemsHtml}</div>
+    <div style="color:var(--text2);font-size:11px;margin-top:8px;">📥 Creada por: <b>${esc(c.creada_por||'--')}</b> — ${cajaFormatFechaHora(c.hora_entrega)}</div>
+    ${revisadaHtml}
+    ${notasHtml}
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">${actions}</div>
+  </div>`;
+}
+
+function renderInstList(){
+  const list=getInstaladores();
+  const cont=document.getElementById('instList');
+  if(!list.length){
+    cont.innerHTML='<div style="color:var(--text2);text-align:center;padding:30px;">Sin instaladores aún. Agrega el primero con "＋ Agregar Instalador".</div>';
+    return;
+  }
+  cont.innerHTML=list.map(i=>`<div class="stat-card" style="padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+    <div style="flex:1;">
+      <div style="font-weight:700;">👷 ${esc(i.nombre)}</div>
+      <div style="color:var(--text2);font-size:11px;">${i.activo?'Activo':'Inactivo'}</div>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button class="btn btn-secondary" onclick="openInstModal(${i.id})">✏️</button>
+      <button class="btn btn-secondary" onclick="deleteInstalador(${i.id})">🗑</button>
+    </div>
+  </div>`).join('');
+}
+
+function renderHerrList(){
+  const list=getHerramientas();
+  const cont=document.getElementById('herrList');
+  if(!list.length){
+    cont.innerHTML='<div style="color:var(--text2);text-align:center;padding:30px;">Sin herramientas aún. Agrega la primera con "＋ Agregar Herramienta".</div>';
+    return;
+  }
+  cont.innerHTML=list.map(h=>`<div class="stat-card" style="padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+    <div style="flex:1;">
+      <div style="font-weight:700;">🛠 ${esc(h.nombre)}</div>
+      <div style="color:var(--text2);font-size:11px;">${h.activo?'Activa':'Inactiva'}</div>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button class="btn btn-secondary" onclick="openHerrModal(${h.id})">✏️</button>
+      <button class="btn btn-secondary" onclick="deleteHerramienta(${h.id})">🗑</button>
+    </div>
+  </div>`).join('');
+}
+
+// ── Instaladores CRUD ──
+function openInstModal(id){
+  editingInstId=id||null;
+  document.getElementById('instModalTitle').textContent=id?'Editar Instalador':'Agregar Instalador';
+  document.getElementById('instName').value='';
+  if(id){
+    const it=getInstaladores().find(i=>i.id===id);
+    if(it) document.getElementById('instName').value=it.nombre;
+  }
+  openModal('instModal');
+}
+async function saveInstalador(){
+  const nombre=document.getElementById('instName').value.trim();
+  if(!nombre){showToast('El nombre es obligatorio',true);return;}
+  try{
+    showLoader(true);
+    if(editingInstId){
+      await api('/api/instaladores/'+editingInstId,{method:'PUT',body:JSON.stringify({nombre,activo:true})});
+      showToast('✅ Instalador actualizado');
+    }else{
+      await api('/api/instaladores',{method:'POST',body:JSON.stringify({nombre,activo:true})});
+      showToast('✅ Instalador agregado');
+    }
+    await loadInstaladores();
+    renderInstList();
+    closeModal('instModal');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+async function deleteInstalador(id){
+  if(!confirm('¿Eliminar este instalador?')) return;
+  try{
+    showLoader(true);
+    await api('/api/instaladores/'+id,{method:'DELETE'});
+    await loadInstaladores();
+    renderInstList();
+    showToast('🗑️ Instalador eliminado');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+
+// ── Herramientas CRUD ──
+function openHerrModal(id){
+  editingHerrId=id||null;
+  document.getElementById('herrModalTitle').textContent=id?'Editar Herramienta':'Agregar Herramienta';
+  document.getElementById('herrName').value='';
+  if(id){
+    const it=getHerramientas().find(h=>h.id===id);
+    if(it) document.getElementById('herrName').value=it.nombre;
+  }
+  openModal('herrModal');
+}
+async function saveHerramienta(){
+  const nombre=document.getElementById('herrName').value.trim();
+  if(!nombre){showToast('El nombre es obligatorio',true);return;}
+  try{
+    showLoader(true);
+    if(editingHerrId){
+      await api('/api/herramientas/'+editingHerrId,{method:'PUT',body:JSON.stringify({nombre,activo:true})});
+      showToast('✅ Herramienta actualizada');
+    }else{
+      await api('/api/herramientas',{method:'POST',body:JSON.stringify({nombre,activo:true})});
+      showToast('✅ Herramienta agregada');
+    }
+    await loadHerramientas();
+    renderHerrList();
+    closeModal('herrModal');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+async function deleteHerramienta(id){
+  if(!confirm('¿Eliminar esta herramienta?')) return;
+  try{
+    showLoader(true);
+    await api('/api/herramientas/'+id,{method:'DELETE'});
+    await loadHerramientas();
+    renderHerrList();
+    showToast('🗑️ Herramienta eliminada');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+
+// ── Nueva Caja ──
+async function openCajaModal(){
+  const inst=getInstaladores().filter(i=>i.activo);
+  const herr=getHerramientas().filter(h=>h.activo);
+  if(!inst.length){showToast('Primero agrega al menos un instalador',true);return;}
+  if(!herr.length){showToast('Primero agrega al menos una herramienta',true);return;}
+  document.getElementById('cjFecha').value=todayStr();
+  document.getElementById('cjNotas').value='';
+  // Poblar selector de plantillas.
+  const plantillas=getPlantillas();
+  const plSel=document.getElementById('cjPlantillaSel');
+  plSel.innerHTML='<option value="">— Sin plantilla (Caja modificada desde cero) —</option>'
+    +plantillas.map(p=>`<option value="${p.id}">📋 ${esc(p.nombre)}</option>`).join('');
+  plSel.value='';
+  const instBox=document.getElementById('cjInstPicker');
+  instBox.innerHTML=inst.map(i=>`<label style="display:flex;align-items:center;gap:8px;padding:4px 0;">
+    <input type="checkbox" class="cj-inst-chk" value="${i.id}"> 
+    <span>👷 ${esc(i.nombre)}</span>
+  </label>`).join('');
+  const herrBox=document.getElementById('cjHerrPicker');
+  herrBox.innerHTML=herr.map(h=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed var(--border);">
+    <div style="flex:1;">🛠 ${esc(h.nombre)}</div>
+    <input type="number" min="0" step="1" value="0" class="cj-herr-qty" data-id="${h.id}" style="width:68px;padding:4px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);text-align:center;">
+  </div>`).join('');
+  openModal('cajaModal');
+}
+function applyPlantillaToCaja(){
+  const plId=Number(document.getElementById('cjPlantillaSel').value||0);
+  // Reset a 0 todos los inputs.
+  document.querySelectorAll('.cj-herr-qty').forEach(el=>{el.value='0';});
+  if(!plId) return;
+  const p=getPlantillas().find(x=>x.id===plId);
+  if(!p) return;
+  const qtyById={};
+  (p.items||[]).forEach(it=>{qtyById[it.herramienta_id]=it.cantidad;});
+  document.querySelectorAll('.cj-herr-qty').forEach(el=>{
+    const hid=Number(el.dataset.id);
+    if(qtyById[hid]!==undefined) el.value=String(qtyById[hid]);
+  });
+}
+async function saveCaja(){
+  const fecha=document.getElementById('cjFecha').value;
+  const notas=document.getElementById('cjNotas').value.trim();
+  const instIds=[...document.querySelectorAll('.cj-inst-chk:checked')].map(el=>Number(el.value));
+  if(!instIds.length){showToast('Selecciona al menos un instalador',true);return;}
+  const items=[...document.querySelectorAll('.cj-herr-qty')]
+    .map(el=>({herramienta_id:Number(el.dataset.id),cantidad_entregada:Number(el.value||0)}))
+    .filter(it=>it.cantidad_entregada>0);
+  if(!items.length){showToast('Pon al menos una herramienta con cantidad > 0',true);return;}
+  if(!fecha){showToast('Selecciona la fecha',true);return;}
+  try{
+    showLoader(true);
+    await api('/api/cajas',{method:'POST',body:JSON.stringify({fecha,instalador_ids:instIds,items,notas})});
+    await loadCajas();
+    renderCajasList();
+    closeModal('cajaModal');
+    showToast('✅ Caja asignada');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+
+// ── Revisar Caja ──
+function openRevisarModal(cajaId){
+  const caja=getCajas().find(c=>c.id===cajaId);
+  if(!caja){showToast('Caja no encontrada',true);return;}
+  revisarCajaId=cajaId;
+  document.getElementById('rvTitle').textContent=`Revisar caja del ${formatDate(caja.fecha)}`;
+  document.getElementById('rvSub').innerHTML=`👷 ${esc((caja.instaladores||[]).join(', '))}<br>🧰 Entregada a las <b>${cajaFormatHora(caja.hora_entrega)}</b>`;
+  document.getElementById('rvNotas').value=caja.notas||'';
+  const itemsHtml=(caja.items||[]).map(it=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed var(--border);">
+    <div style="flex:1;">
+      <div style="font-weight:700;">🛠 ${esc(it.herramienta_nombre)}</div>
+      <div style="color:var(--text2);font-size:11px;">Entregadas: <b>${it.cantidad_entregada}</b></div>
+    </div>
+    <input type="number" min="0" max="${it.cantidad_entregada}" step="1" value="${it.cantidad_devuelta||it.cantidad_entregada}" class="rv-qty" data-id="${it.id}" data-max="${it.cantidad_entregada}" style="width:72px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);text-align:center;">
+  </div>`).join('');
+  document.getElementById('rvItems').innerHTML=itemsHtml;
+  openModal('revisarModal');
+}
+async function saveRevision(){
+  if(!revisarCajaId) return;
+  const notas=document.getElementById('rvNotas').value.trim();
+  const items=[...document.querySelectorAll('.rv-qty')].map(el=>{
+    const max=Number(el.dataset.max||0);
+    let v=Number(el.value||0);
+    if(v<0) v=0;
+    if(v>max) v=max;
+    return {id:Number(el.dataset.id),cantidad_devuelta:v};
+  });
+  try{
+    showLoader(true);
+    await api(`/api/cajas/${revisarCajaId}/revisar`,{method:'POST',body:JSON.stringify({items,notas})});
+    await loadCajas();
+    renderCajasList();
+    closeModal('revisarModal');
+    revisarCajaId=null;
+    showToast('✅ Revisión guardada');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+
+async function deleteCaja(id){
+  if(currentUser.role!=='admin'){showToast('Solo el administrador puede borrar cajas',true);return;}
+  if(!confirm('¿Eliminar esta caja? Esto borra también la revisión y los items.')) return;
+  try{
+    showLoader(true);
+    await api('/api/cajas/'+id,{method:'DELETE'});
+    await loadCajas();
+    renderCajasList();
+    showToast('🗑️ Caja eliminada');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+
+// ── Plantillas CRUD ──
+function renderPlantillasList(){
+  const list=getPlantillas();
+  const cont=document.getElementById('plantillasList');
+  if(!cont) return;
+  if(!list.length){
+    cont.innerHTML='<div style="color:var(--text2);text-align:center;padding:30px;">Sin plantillas aún. Crea la primera con "＋ Crear Plantilla".</div>';
+    return;
+  }
+  cont.innerHTML=list.map(p=>{
+    const items=(p.items||[]).map(it=>`<span style="display:inline-block;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:2px 8px;margin:2px;font-size:11px;"><b>${it.cantidad}</b> ${esc(it.herramienta_nombre||'')}</span>`).join('');
+    return `<div class="stat-card" style="padding:12px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+        <div style="flex:1;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:15px;">📋 ${esc(p.nombre)}</div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-secondary" onclick="openPlantillaModal(${p.id})">✏️</button>
+          <button class="btn btn-secondary" onclick="deletePlantilla(${p.id})">🗑</button>
+        </div>
+      </div>
+      <div style="margin-top:8px;line-height:1.9;">${items||'<span style="color:var(--text2);font-size:12px;">(sin herramientas)</span>'}</div>
+    </div>`;
+  }).join('');
+}
+function openPlantillaModal(id){
+  const herr=getHerramientas().filter(h=>h.activo);
+  if(!herr.length){showToast('Primero agrega al menos una herramienta',true);return;}
+  editingPlantillaId=id||null;
+  document.getElementById('plModalTitle').textContent=id?'Editar Plantilla':'Crear Plantilla';
+  document.getElementById('plName').value='';
+  const box=document.getElementById('plHerrPicker');
+  const qtyById={};
+  if(id){
+    const p=getPlantillas().find(x=>x.id===id);
+    if(p){
+      document.getElementById('plName').value=p.nombre;
+      (p.items||[]).forEach(it=>{qtyById[it.herramienta_id]=it.cantidad;});
+    }
+  }
+  box.innerHTML=herr.map(h=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed var(--border);">
+    <div style="flex:1;">🛠 ${esc(h.nombre)}</div>
+    <input type="number" min="0" step="1" value="${qtyById[h.id]||0}" class="pl-herr-qty" data-id="${h.id}" style="width:68px;padding:4px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);text-align:center;">
+  </div>`).join('');
+  openModal('plantillaModal');
+}
+async function savePlantilla(){
+  const nombre=document.getElementById('plName').value.trim();
+  if(!nombre){showToast('El nombre es obligatorio',true);return;}
+  const items=[...document.querySelectorAll('.pl-herr-qty')]
+    .map(el=>({herramienta_id:Number(el.dataset.id),cantidad:Number(el.value||0)}))
+    .filter(it=>it.cantidad>0);
+  if(!items.length){showToast('Pon al menos una herramienta con cantidad > 0',true);return;}
+  try{
+    showLoader(true);
+    if(editingPlantillaId){
+      await api('/api/plantillas/'+editingPlantillaId,{method:'PUT',body:JSON.stringify({nombre,items})});
+      showToast('✅ Plantilla actualizada');
+    }else{
+      await api('/api/plantillas',{method:'POST',body:JSON.stringify({nombre,items})});
+      showToast('✅ Plantilla creada');
+    }
+    await loadPlantillas();
+    renderPlantillasList();
+    closeModal('plantillaModal');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+async function deletePlantilla(id){
+  if(!confirm('¿Eliminar esta plantilla?')) return;
+  try{
+    showLoader(true);
+    await api('/api/plantillas/'+id,{method:'DELETE'});
+    await loadPlantillas();
+    renderPlantillasList();
+    showToast('🗑️ Plantilla eliminada');
+  }catch(err){showToast('⚠️ '+err.message,true);}
+  finally{showLoader(false);}
+}
+
+// ── BITACORA (solo admin) ────────────────────────────────
+// Estado local del filtro: rango + accesorio seleccionado + ultima carga.
+let bitacoraRango='hoy';
+let bitacoraData=[];
+let bitacoraAccesorio=null; // {code, name} cuando hay un accesorio seleccionado.
+
+// Mapeo legible de las acciones del backend a label + icono.
+// Si agregamos eventos nuevos en el backend, sumarlos aqui para que
+// salgan con texto humano en vez del id crudo.
+const BITACORA_ACTIONS={
+  login_ok:        {label:'Inició sesión',           icon:'🔐', color:'#10b981'},
+  login_failed:    {label:'Intento de login fallido', icon:'⛔', color:'#ef4444'},
+  logout:          {label:'Cerró sesión',             icon:'🚪', color:'#94a3b8'},
+  password_change: {label:'Cambió su contraseña',    icon:'🔑', color:'#f59e0b'},
+  inventory_create:{label:'Creó accesorio',          icon:'➕', color:'#10b981'},
+  inventory_update:{label:'Editó accesorio',         icon:'✏️', color:'#3b82f6'},
+  inventory_delete:{label:'Borró accesorio',         icon:'🗑️', color:'#ef4444'},
+  inventory_bulk_update:{label:'Actualizó inventario por Excel', icon:'📥', color:'#8b5cf6'},
+  usage_create:    {label:'Registró uso',             icon:'✏️', color:'#10b981'},
+  usage_delete:    {label:'Borró registro de uso',    icon:'🗑️', color:'#ef4444'},
+  caja_create:     {label:'Asignó caja',              icon:'🧰', color:'#10b981'},
+  caja_revisar:    {label:'Revisó caja al regreso',   icon:'✅', color:'#3b82f6'},
+  caja_delete:     {label:'Borró caja',               icon:'🗑️', color:'#ef4444'},
+  instalador_create:{label:'Creó instalador',         icon:'👷', color:'#10b981'},
+  instalador_update:{label:'Editó instalador',        icon:'✏️', color:'#3b82f6'},
+  instalador_delete:{label:'Borró instalador',        icon:'🗑️', color:'#ef4444'},
+  herramienta_create:{label:'Creó herramienta',       icon:'🛠', color:'#10b981'},
+  herramienta_update:{label:'Editó herramienta',      icon:'✏️', color:'#3b82f6'},
+  herramienta_delete:{label:'Borró herramienta',      icon:'🗑️', color:'#ef4444'},
+  plantilla_create:{label:'Creó plantilla',           icon:'📋', color:'#10b981'},
+  plantilla_update:{label:'Editó plantilla',          icon:'✏️', color:'#3b82f6'},
+  plantilla_delete:{label:'Borró plantilla',          icon:'🗑️', color:'#ef4444'},
+};
+
+async function loadBitacora(){
+  // Backend filtra por rango y por accesorio (si esta seleccionado);
+  // el resto (categoria/usuario) lo hacemos en cliente para que cambiar
+  // el dropdown sea instantaneo. Cuando hay accesorio seleccionado,
+  // forzamos rango=all asi vemos toda su historia, no solo las ultimas
+  // entradas del rango actual.
+  const params=new URLSearchParams({limit:'2000'});
+  if(bitacoraAccesorio){
+    params.set('rango','all');
+    params.set('accesorio_code',bitacoraAccesorio.code);
+  }else{
+    params.set('rango',bitacoraRango);
+  }
+  bitacoraData=await api('/api/audit-log?'+params.toString());
+  return bitacoraData;
+}
+// ── Buscador de accesorios en BITACORA ────────────────────
+function onBitacoraAccesorioInput(){
+  const inp=document.getElementById('biAccesorioInput');
+  const box=document.getElementById('biAccesorioSuggest');
+  const q=(inp.value||'').trim().toLowerCase();
+  if(!q){box.style.display='none';return;}
+  const inv=getInventory();
+  // Match por code o name. Mostramos hasta 30 sugerencias para no
+  // saturar el dropdown (el inventario tiene >700 productos).
+  const matches=inv.filter(it=>{
+    const c=String(it.code||'').toLowerCase();
+    const n=String(it.name||'').toLowerCase();
+    return c.includes(q)||n.includes(q);
+  }).slice(0,30);
+  if(matches.length===0){
+    box.innerHTML='<div style="padding:10px;color:var(--text2);font-size:13px;">Sin resultados</div>';
+    box.style.display='block';
+    return;
+  }
+  box.innerHTML=matches.map(it=>{
+    const code=esc(it.code||''); const name=esc(it.name||'');
+    return `<div class="bi-sugg" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);background:var(--surface);"
+      onmousedown="pickBitacoraAccesorio('${code.replace(/'/g,"\\'")}','${name.replace(/'/g,"\\'")}')">
+      <div style="font-weight:600;font-size:13px;color:var(--text);">${name}</div>
+      <div style="color:var(--text2);font-size:11px;">cód. ${code}</div>
+    </div>`;
+  }).join('');
+  box.style.display='block';
+}
+function closeBitacoraSuggest(){
+  const box=document.getElementById('biAccesorioSuggest');
+  if(box) box.style.display='none';
+}
+async function pickBitacoraAccesorio(code,name){
+  bitacoraAccesorio={code,name};
+  const inp=document.getElementById('biAccesorioInput');
+  inp.value=name+' (cód. '+code+')';
+  inp.disabled=true;
+  document.getElementById('biAccesorioClear').style.display='inline-flex';
+  closeBitacoraSuggest();
+  const pill=document.getElementById('biAccesorioPill');
+  pill.style.display='block';
+  pill.innerHTML='Mostrando todos los movimientos de <b>'+esc(name)+'</b> (toda la historia).';
+  await loadBitacora();
+  renderBitacora();
+}
+// Atajo desde la lista de inventario: pre-selecciona un accesorio
+// y abre la pestania MOVIMIENTOS con su historial completo.
+function openMovimientosForItem(itemId){
+  const inv=getInventory();
+  const it=inv.find(x=>x.id===itemId);
+  if(!it){showToast('Accesorio no encontrado',true);return;}
+  const code=String(it.code||''); const name=String(it.name||'');
+  bitacoraAccesorio={code,name};
+  // Sincronizamos el UI del filtro antes de cambiar de pestania asi
+  // cuando el usuario llega a MOVIMIENTOS ya ve el chip activo.
+  const inp=document.getElementById('biAccesorioInput');
+  if(inp){inp.value=name+' (cód. '+code+')'; inp.disabled=true;}
+  const clr=document.getElementById('biAccesorioClear');
+  if(clr) clr.style.display='inline-flex';
+  const pill=document.getElementById('biAccesorioPill');
+  if(pill){
+    pill.style.display='block';
+    pill.innerHTML='Mostrando todos los movimientos de <b>'+esc(name)+'</b> (toda la historia).';
+  }
+  switchTab('Bitacora');
+}
+async function clearBitacoraAccesorio(){
+  bitacoraAccesorio=null;
+  const inp=document.getElementById('biAccesorioInput');
+  inp.value=''; inp.disabled=false;
+  document.getElementById('biAccesorioClear').style.display='none';
+  document.getElementById('biAccesorioPill').style.display='none';
+  closeBitacoraSuggest();
+  await loadBitacora();
+  renderBitacora();
+}
+function setBitacoraRango(r){
+  bitacoraRango=r;
+  ['Hoy','Sem','Mes','All'].forEach(x=>{
+    const k='biRango'+x;
+    const el=document.getElementById(k);
+    if(el) el.classList.remove('active');
+  });
+  const map={hoy:'biRangoHoy',semana:'biRangoSem',mes:'biRangoMes',all:'biRangoAll'};
+  const btn=document.getElementById(map[r]);
+  if(btn) btn.classList.add('active');
+  loadBitacora().then(renderBitacora);
+}
+function _bitacoraFmtTs(iso){
+  if(!iso) return '--';
+  try{
+    const d=new Date(iso);
+    const fecha=d.toLocaleDateString('es-HN',{day:'2-digit',month:'2-digit',year:'numeric'});
+    let hora=d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+    hora=hora.replace('AM','a.m.').replace('PM','p.m.');
+    return fecha+' '+hora;
+  }catch{return iso;}
+}
+function _bitacoraDescribeDetails(action,details){
+  // Devuelve un string legible. Devuelve '' si no hay nada util.
+  if(!details||typeof details!=='object') return '';
+  try{
+    if(action==='inventory_create'){
+      return `${esc(details.name||'')} (cód. ${esc(details.code||'')}, stock ${details.stock??0})`;
+    }
+    if(action==='inventory_update'){
+      const head=esc(details.name||'');
+      const ch=details.changes||{};
+      const parts=[];
+      if(ch.stock) parts.push(`Stock ${ch.stock.before} → <b>${ch.stock.after}</b>`);
+      if(ch.cost) parts.push(`Costo L. ${Number(ch.cost.before||0).toFixed(2)} → <b>L. ${Number(ch.cost.after||0).toFixed(2)}</b>`);
+      if(ch.code) parts.push(`Código ${esc(ch.code.before)} → ${esc(ch.code.after)}`);
+      if(ch.name) parts.push(`Nombre actualizado`);
+      if(ch.cat)  parts.push(`Categoría → ${esc(ch.cat.after||'')}`);
+      // Cada cambio en su propia linea: nombre del accesorio + un
+      // renglon por cada campo modificado (Stock/Costo/Codigo/etc).
+      if(parts.length===0) return head+' (sin cambios netos)';
+      return head+'<br>'+parts.join('<br>');
+    }
+    if(action==='inventory_delete'){
+      return `${esc(details.name||'')} (cód. ${esc(details.code||'')}, tenía stock ${details.stock??0})`;
+    }
+    if(action==='inventory_bulk_update'){
+      const sample=(details.sample||[]).slice(0,3).map(s=>esc(s.name||s.code||'')).join(', ');
+      return `${details.updated||0} producto(s) actualizado(s)${sample?(' · ej: '+sample+(details.updated>3?'…':'')):''}`;
+    }
+    if(action==='usage_create'){
+      const items=details.items||[];
+      // Una linea por item, con: nombre, -N Unidades, y stock nuevo
+      // (stock viejo - usado). Si el log es viejo y no tiene
+      // stock_before/stock_after, omitimos esa linea.
+      const lines=items.map(it=>{
+        const used=Number(it.actualDeducted||0);
+        const sb=it.stock_before, sa=it.stock_after;
+        const line2=`-${used} Unidad${used===1?'':'es'}`;
+        const hasStock=(sb!=null && sa!=null);
+        const line3=hasStock?`Stock: <b>${sa}</b> (${sb} - ${used})`:'';
+        return `<div style="margin-top:6px;line-height:1.45;"><b>${esc(it.name||'')}</b><br>${line2}${line3?('<br>'+line3):''}</div>`;
+      });
+      return lines.join('');
+    }
+    if(action==='usage_delete'){
+      const items=details.items_restored||[];
+      const total=items.reduce((a,it)=>a+Number(it.restored||0),0);
+      return `Restauró ${total} unidad(es) al stock · registro original de ${esc(details.original_user||'')}`;
+    }
+    if(action==='caja_create'){
+      const inst=(details.instaladores||[]).map(esc).join(', ');
+      return `${(details.items||[]).length} herramienta(s) → ${inst||'(sin instaladores)'}`;
+    }
+    if(action==='caja_revisar'){
+      return `Entregadas ${details.total_entregadas||0} · Devueltas ${details.total_devueltas||0} · Faltantes ${details.total_faltantes||0}`;
+    }
+    if(action==='caja_delete'){
+      return `Caja del ${esc(details.fecha||'')} (creada por ${esc(details.creada_por||'')})`;
+    }
+    if(action==='instalador_create'||action==='herramienta_create'||action==='plantilla_create'){
+      return esc(details.nombre||'');
+    }
+    if(action==='instalador_delete'||action==='herramienta_delete'||action==='plantilla_delete'){
+      return esc(details.nombre||'');
+    }
+    if(action==='instalador_update'||action==='herramienta_update'){
+      const b=details.before||{}, a=details.after||{};
+      if(b.nombre!==a.nombre) return `${esc(b.nombre||'')} → ${esc(a.nombre||'')}`;
+      return `${esc(a.nombre||'')} (${a.activo?'activo':'inactivo'})`;
+    }
+    if(action==='plantilla_update'){
+      return `${esc(details.nombre||'')} · ${(details.items||[]).length} herramienta(s)`;
+    }
+    if(action==='login_failed'){
+      return `Razón: ${details.reason==='user_not_found'?'usuario no existe':'contraseña incorrecta'}`;
+    }
+    if(action==='login_ok'){
+      return `Rol ${esc(details.role||'')}`;
+    }
+  }catch{}
+  return '';
+}
+function renderBitacora(){
+  const list=document.getElementById('bitacoraList');
+  if(!bitacoraData) bitacoraData=[];
+  // Poblar dropdown de usuarios con los que aparecen en los datos.
+  const userSel=document.getElementById('biUsuario');
+  const prevUser=userSel.value;
+  const usuarios=[...new Set(bitacoraData.map(r=>r.username||'(anónimo)'))].sort();
+  userSel.innerHTML='<option value="">Todos los usuarios</option>'+
+    usuarios.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join('');
+  if(usuarios.includes(prevUser)) userSel.value=prevUser;
+  const cat=document.getElementById('biCategoria').value;
+  const usr=userSel.value;
+  // Categoria -> set de actions (espejo del backend para filtrar en cliente).
+  const CAT_MAP={
+    login:['login_ok','login_failed','logout','password_change'],
+    inventario:['inventory_create','inventory_update','inventory_delete','inventory_bulk_update'],
+    usos:['usage_create','usage_delete'],
+    cajas:['caja_create','caja_revisar','caja_delete','instalador_create','instalador_update','instalador_delete','herramienta_create','herramienta_update','herramienta_delete','plantilla_create','plantilla_update','plantilla_delete'],
+  };
+  let rows=bitacoraData;
+  if(cat&&CAT_MAP[cat]) rows=rows.filter(r=>CAT_MAP[cat].includes(r.action));
+  if(usr) rows=rows.filter(r=>(r.username||'(anónimo)')===usr);
+  if(rows.length===0){
+    list.innerHTML='<div style="text-align:center;color:var(--text2);padding:30px;">No hay actividad en este filtro.</div>';
+    return;
+  }
+  list.innerHTML=rows.map(r=>{
+    const meta=BITACORA_ACTIONS[r.action]||{label:r.action,icon:'•',color:'#94a3b8'};
+    const usuario=esc(r.username||'(anónimo)');
+    // Etiqueta con autor integrado: 'Accesorio editado por Ariel',
+    // 'Registro hecho por Ariel', etc. Es mas natural de leer que
+    // tener el autor en una linea aparte.
+    const labelMap={
+      inventory_create:'Accesorio creado',
+      inventory_update:'Accesorio editado',
+      inventory_delete:'Accesorio borrado',
+      inventory_bulk_update:'Inventario actualizado por Excel',
+      usage_create:'Registro hecho',
+      usage_delete:'Registro borrado',
+    };
+    const baseLabel=labelMap[r.action]||meta.label;
+    const titulo=`${meta.icon} ${esc(baseLabel)} por <b>${usuario}</b>`;
+    const desc=_bitacoraDescribeDetails(r.action,r.details);
+    // .hist-item es flex-row: envolvemos todo en un solo flex:1 para
+    // que titulo, hora y descripcion vayan apilados en una columna.
+    return `<div class="hist-item" style="border-left:3px solid ${meta.color};align-items:stretch;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;">${titulo}</div>
+        <div style="margin-top:4px;color:var(--text2);font-size:12px;">${esc(_bitacoraFmtTs(r.ts))}</div>
+        ${desc?`<div style="margin-top:6px;font-size:13px;">${desc}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── UTILS ─────────────────────────────────────────────────
+function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function formatDate(str){const[y,m,d]=str.split('-');return`${d}/${m}/${y}`;}
+function formatTime(ts){if(!ts) return '--:--';try{let s=new Date(ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});return s.replace('AM','a.m.').replace('PM','p.m.');}catch{return '--:--';}}
+function getMondayOf(dateStr){
+  const d=new Date(dateStr+'T12:00:00');
+  const day=d.getDay();
+  const diff=day===0?-6:1-day;
+  d.setDate(d.getDate()+diff);
+  return d.toISOString().split('T')[0];
+}
+function getSundayOf(mondayStr){
+  const d=new Date(mondayStr+'T12:00:00');
+  d.setDate(d.getDate()+6);
+  return d.toISOString().split('T')[0];
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+// Tasa ISV (Impuesto Sobre Ventas) Honduras = 15%. Centralizado aqui por si
+// algun dia cambia. Los costos se guardan SIN ISV en la BD y se aplica este
+// factor al mostrarlos / exportarlos.
+const ISV_RATE=0.15;
+function withIsv(n){return Number(n||0)*(1+ISV_RATE);}
+function formatLempira(n){
+  const v=Number(n||0);
+  return 'L. '+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function getCostByCode(code){
+  if(!code) return 0;
+  const it=getInventory().find(i=>i.code===code);
+  return it?Number(it.cost||0):0;
+}
+// Costo unitario "congelado" del item de un registro de uso. Si el
+// registro ya trae unit_cost (snapshot guardado al momento de
+// crearlo), lo usamos tal cual: ese fue el costo real del accesorio
+// cuando se uso, y NO debe cambiar aunque el costo actual del
+// inventario se haya editado despues. Solo caemos al lookup actual
+// como ultimo recurso para registros muy viejos sin snapshot.
+function getCostForItem(it){
+  if(!it) return 0;
+  if(it.unit_cost!=null && it.unit_cost!==undefined){
+    return Number(it.unit_cost)||0;
+  }
+  return getCostByCode(it.code);
+}
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.modal-overlay').forEach(m=>{
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});
+});
+let toastTimer;
+function showToast(msg,err=false){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='toast'+(err?' error':'')+' show';
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),2800);
+}
+document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+document.getElementById('loginUser').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass').focus();});
+tryResumeSession();
+</script>
+</body>
+</html>

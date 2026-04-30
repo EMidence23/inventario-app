@@ -1,0 +1,374 @@
+"""Inventario: list, create, update, delete."""
+from __future__ import annotations
+
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from ..audit import write_audit
+from ..auth import get_current_user, require_admin
+from ..db import get_db
+from ..models import InventoryItem, User
+from ..schemas import (
+    InventoryBulkIn,
+    InventoryBulkOut,
+    InventoryBulkResultRow,
+    InventoryItemIn,
+    InventoryItemOut,
+)
+
+router = APIRouter(prefix="/api/inventory", tags=["inventory"])
+
+
+@router.get("", response_model=list[InventoryItemOut])
+def list_items(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[InventoryItemOut]:
+    rows = db.query(InventoryItem).order_by(InventoryItem.id).all()
+    # El costo unitario es informacion sensible (margenes); solo lo
+    # devolvemos al admin. Para empleados se esconde a 0 desde la API
+    # para que ni siquiera con devtools se pueda leer.
+    expose_cost = user.role == "admin"
+    return [
+        InventoryItemOut(
+            id=r.id,
+            code=r.code,
+            name=r.name,
+            cat=r.cat or "",
+            stock=r.stock or 0,
+            cost=float(r.cost or 0.0) if expose_cost else 0.0,
+        )
+        for r in rows
+    ]
+
+
+@router.post("", response_model=InventoryItemOut, status_code=status.HTTP_201_CREATED)
+def create_item(
+    payload: InventoryItemIn,
+    actor: Annotated[User, Depends(require_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> InventoryItemOut:
+    if db.query(InventoryItem).filter(InventoryItem.code == payload.code).first() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ya existe un accesorio con ese codigo",
+        )
+    item = InventoryItem(
+        code=payload.code,
+        name=payload.name,
+        cat=payload.cat or "",
+        stock=payload.stock if payload.stock is not None else 0,
+        cost=float(payload.cost) if payload.cost is not None else 0.0,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    write_audit(
+        db,
+        action="inventory_create",
+        actor=actor,
+        entity_type="inventory_item",
+        entity_id=item.id,
+        details={
+            "code": item.code,
+            "name": item.name,
+            "cat": item.cat or "",
+            "stock": item.stock,
+            "cost": float(item.cost or 0.0),
+        },
+    )
+    return InventoryItemOut(
+        id=item.id,
+        code=item.code,
+        name=item.name,
+        cat=item.cat or "",
+        stock=item.stock or 0,
+        cost=float(item.cost or 0.0),
+    )
+
+
+@router.put("/{item_id}", response_model=InventoryItemOut)
+def update_item(
+    item_id: int,
+    payload: InventoryItemIn,
+    actor: Annotated[User, Depends(require_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> InventoryItemOut:
+    item = db.get(InventoryItem, item_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Accesorio no encontrado")
+    other = (
+        db.query(InventoryItem)
+        .filter(InventoryItem.code == payload.code, InventoryItem.id != item_id)
+        .first()
+    )
+    if other is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ya existe otro accesorio con ese codigo",
+        )
+    # Snapshot del estado anterior para registrar el diff en bitacora.
+    before = {
+        "code": item.code,
+        "name": item.name,
+        "cat": item.cat or "",
+        "stock": item.stock,
+        "cost": float(item.cost or 0.0),
+    }
+    item.code = payload.code
+    item.name = payload.name
+    item.cat = payload.cat or ""
+    if payload.stock is not None:
+        item.stock = payload.stock
+    if payload.cost is not None:
+        item.cost = float(payload.cost)
+    db.commit()
+    db.refresh(item)
+    after = {
+        "code": item.code,
+        "name": item.name,
+        "cat": item.cat or "",
+        "stock": item.stock,
+        "cost": float(item.cost or 0.0),
+    }
+    changes = {k: {"before": before[k], "after": after[k]} for k in before if before[k] != after[k]}
+    write_audit(
+        db,
+        action="inventory_update",
+        actor=actor,
+        entity_type="inventory_item",
+        entity_id=item.id,
+        details={"code": item.code, "name": item.name, "changes": changes},
+    )
+    return InventoryItemOut(
+        id=item.id,
+        code=item.code,
+        name=item.name,
+        cat=item.cat or "",
+        stock=item.stock or 0,
+        cost=float(item.cost or 0.0),
+    )
+
+
+@router.post("/bulk-update", response_model=InventoryBulkOut)
+def bulk_update(
+    payload: InventoryBulkIn,
+    actor: Annotated[User, Depends(require_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> InventoryBulkOut:
+    """Actualizacion masiva desde Excel.
+
+    El frontend parsea el Excel y envia las filas normalizadas aqui. Con
+    commit=False solo calculamos el diff (preview); con commit=True se
+    aplican los cambios dentro de una transaccion unica.
+
+    Reglas:
+    - code es obligatorio. Si el code no existe en la BD -> skipped_not_found
+      (no se crean productos nuevos desde aqui, es seguro contra typos).
+    - stock / cost_with_isv / name / cat son opcionales: si la celda vino
+      vacia, NO se toca el campo del producto.
+    - El costo viene CON ISV y se guarda SIN ISV (cost = cost_with_isv / (1+isv_rate)).
+    """
+    import re
+
+    def _norm_code(s: str) -> str:
+        """Normaliza un codigo para matching tolerante:
+        - quita espacios al inicio/final
+        - colapsa espacios internos (multiples, tabs) a nada
+        - mayusculas.
+        Esto permite que 'NB-ER04- TL600' (con espacio) matchee con
+        'NB-ER04-TL600' (sin espacio) en la BD, y maneja tildes/mayusculas.
+        """
+        return re.sub(r"\s+", "", (s or "").strip()).upper()
+
+    results: list[InventoryBulkResultRow] = []
+    would_update = 0
+    not_found = 0
+    no_changes = 0
+    invalid = 0
+
+    # Pre-cargar TODOS los productos una sola vez y construir un indice por
+    # codigo normalizado para hacer matching tolerante a espacios y case.
+    all_items = db.query(InventoryItem).all()
+    items_by_norm: dict[str, InventoryItem] = {}
+    for it in all_items:
+        key = _norm_code(it.code or "")
+        if key and key not in items_by_norm:
+            items_by_norm[key] = it
+
+    isv_divisor = 1.0 + (payload.isv_rate or 0.0)
+    seen_norm: set[str] = set()
+
+    for row in payload.rows:
+        code = (row.code or "").strip()
+        if not code:
+            invalid += 1
+            results.append(
+                InventoryBulkResultRow(
+                    code="",
+                    action="invalid",
+                    changes=[],
+                    reason="Fila sin CodProducto",
+                )
+            )
+            continue
+        norm = _norm_code(code)
+        if norm in seen_norm:
+            invalid += 1
+            results.append(
+                InventoryBulkResultRow(
+                    code=code,
+                    action="invalid",
+                    changes=[],
+                    reason="CodProducto duplicado en el archivo",
+                )
+            )
+            continue
+        seen_norm.add(norm)
+
+        item = items_by_norm.get(norm)
+        if item is None:
+            not_found += 1
+            results.append(
+                InventoryBulkResultRow(
+                    code=code,
+                    action="skipped_not_found",
+                    changes=[],
+                    reason="No existe un producto con ese CodProducto",
+                )
+            )
+            continue
+
+        changes: list[str] = []
+        new_stock = item.stock
+        new_cost = float(item.cost or 0.0)
+        new_name = item.name
+        new_cat = item.cat or ""
+
+        if row.stock is not None and int(row.stock) != (item.stock or 0):
+            new_stock = int(row.stock)
+            changes.append(f"stock: {item.stock or 0} -> {new_stock}")
+
+        if row.cost_with_isv is not None:
+            computed = round(float(row.cost_with_isv) / isv_divisor, 4)
+            current = round(float(item.cost or 0.0), 4)
+            if abs(computed - current) > 0.005:
+                new_cost = computed
+                changes.append(
+                    f"costo s/ISV: L. {current:.2f} -> L. {computed:.2f}"
+                )
+
+        if row.name is not None:
+            nn = row.name.strip()
+            if nn and nn != (item.name or ""):
+                new_name = nn
+                changes.append("descripcion actualizada")
+
+        if row.cat is not None:
+            nc = row.cat.strip()
+            if nc != (item.cat or ""):
+                new_cat = nc
+                changes.append(
+                    f"categoria: '{item.cat or ''}' -> '{nc}'"
+                )
+
+        if not changes:
+            no_changes += 1
+            results.append(
+                InventoryBulkResultRow(
+                    code=item.code,
+                    name=item.name,
+                    action="skipped_no_changes",
+                    changes=[],
+                )
+            )
+            continue
+
+        would_update += 1
+        results.append(
+            InventoryBulkResultRow(
+                code=item.code,
+                name=item.name,
+                action="updated",
+                changes=changes,
+            )
+        )
+
+        if payload.commit:
+            item.stock = new_stock
+            item.cost = new_cost
+            item.name = new_name
+            item.cat = new_cat
+
+    if payload.commit:
+        db.commit()
+        # Solo registramos en bitacora cuando se aplican cambios reales.
+        # El preview (commit=False) no genera ruido en el log.
+        if would_update > 0:
+            write_audit(
+                db,
+                action="inventory_bulk_update",
+                actor=actor,
+                entity_type="inventory",
+                details={
+                    "updated": would_update,
+                    "not_found": not_found,
+                    "no_changes": no_changes,
+                    "invalid": invalid,
+                    "isv_rate": payload.isv_rate,
+                    # 'sample' = primeros 25 con detalle (para mostrar en
+                    # MOVIMIENTOS sin saturar la UI).
+                    "sample": [
+                        {"code": r.code, "name": r.name, "changes": r.changes}
+                        for r in results if r.action == "updated"
+                    ][:25],
+                    # 'affected_codes' = lista plana de TODOS los codigos
+                    # actualizados (sin limite). Permite que la busqueda
+                    # por accesorio en MOVIMIENTOS encuentre el evento
+                    # aunque el item no este en el sample[0..24].
+                    "affected_codes": [
+                        r.code for r in results if r.action == "updated"
+                    ],
+                },
+            )
+
+    return InventoryBulkOut(
+        total_rows=len(payload.rows),
+        would_update=would_update,
+        not_found=not_found,
+        no_changes=no_changes,
+        invalid=invalid,
+        committed=payload.commit,
+        results=results,
+    )
+
+
+@router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_item(
+    item_id: int,
+    actor: Annotated[User, Depends(require_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    item = db.get(InventoryItem, item_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Accesorio no encontrado")
+    snapshot = {
+        "code": item.code,
+        "name": item.name,
+        "cat": item.cat or "",
+        "stock": item.stock,
+        "cost": float(item.cost or 0.0),
+    }
+    db.delete(item)
+    db.commit()
+    write_audit(
+        db,
+        action="inventory_delete",
+        actor=actor,
+        entity_type="inventory_item",
+        entity_id=item_id,
+        details=snapshot,
+    )
+    return None
