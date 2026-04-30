@@ -57,7 +57,11 @@ def factory_reset(
             db.execute(text(f"DELETE FROM {tbl}"))
             counts[tbl] = int(pre)
         except Exception:
-            # Si la tabla no existe en alguna version, seguimos.
+            # Si la tabla no existe en alguna version, seguimos. En
+            # PostgreSQL un statement fallido deja la transaccion en
+            # estado abortado, asi que hay que hacer rollback antes
+            # de seguir; en SQLite el rollback es no-op.
+            db.rollback()
             counts[tbl] = 0
 
     # 2) Usuarios: borrar todos menos el caller, y resetear al caller.
